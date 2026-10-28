@@ -44,7 +44,7 @@ Findings ([R-02](references.md), [R-27](references.md), [R-28](references.md), [
 - Doze defers standard alarms, network, jobs and WorkManager; App Standby defers network for idle apps ([R-29](references.md)).
 - Being exempt from battery optimisation lets the app use the network and hold wake locks in Doze, which helps refill and heartbeat. Alarms are still governed by the alarm APIs above.
 - **Play policy:** the direct request dialog (`ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` + `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` permission) is only for acceptable use cases, and medication reminders aren't listed. We don't declare that permission; guided setup opens the settings list (`ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS`) with guidance ([D-074](01-decisions.md#d-074-battery-optimisation-via-the-settings-list)).
-- Check state with `PowerManager.isIgnoringBatteryOptimizations()`. This needs a small native module or config plugin if no Expo API exposes it (verify in Phase 0). Reported as `battery_unrestricted`.
+- Check state with `isBatteryOptimizationEnabledAsync()` from `expo-battery` (Android 6+, no extra permission); `battery_unrestricted = !enabled` ([R-49](references.md)). No native module needed. Open the list with `expo-intent-launcher` `ActivityAction.IGNORE_BATTERY_OPTIMIZATION_SETTINGS` ([R-50](references.md)).
 - OEM layers (Samsung, Xiaomi/MIUI/HyperOS, Oppo/ColorOS) add their own background killers. Phase 5 adds OEM-specific guidance screens, tested on the device matrix ([12](12-testing-and-slos.md#device-matrix)).
 
 ## iOS interruption levels
@@ -58,7 +58,8 @@ Findings ([R-02](references.md), [R-27](references.md), [R-28](references.md), [
 | `timeSensitive` | Presents immediately, can play sound, "breaks through system notification controls" (Focus, Scheduled Summary) | Standard, Alarm; missed-dose alerts to caregiver |
 | `critical` | Bypasses the mute switch; needs the Critical Alerts entitlement + user permission | After launch: Alarm, if Apple grants the entitlement ([D-027](01-decisions.md#d-027-ios-interruption-levels)) |
 
-- Enable the Time Sensitive Notifications capability in the iOS project (config plugin). Users can turn time-sensitive off per app. That state is reported as `time_sensitive` and treated as a required permission.
+- Enable the Time Sensitive Notifications capability in the iOS project via `ios.entitlements` (`com.apple.developer.usernotifications.time-sensitive`; the expo-notifications plugin has no option for it, [R-02](references.md), [R-55](references.md)). Users can turn time-sensitive off per app. That state is reported as `time_sensitive` and treated as a required permission.
+- **Reading `time_sensitive`:** expo-notifications 58.1.6 doesn't expose it (`NotificationPermissionsStatus.ios` has no such field, [R-02](references.md)). It needs a small Expo Modules API native module reading `UNNotificationSettings.timeSensitiveSetting`, built in Phase 3 alongside any D-076 fallback. Until then the heartbeat can't report it.
 - **Critical Alerts:** apply after launch via Apple's request form ([R-37](references.md)), with the justification: patients who miss medicines due to silent mode; caregiver-configured per medicine.
 - **64 pending requests per app** ([R-39](references.md)): budget in [05](05-reminder-engine.md#window-size).
 - Notification attachments (`attachments`, iOS only) show the cached medicine photo when the lock-screen detail is `full` ([D-079](01-decisions.md#d-079-no-photo-in-android-notifications)).

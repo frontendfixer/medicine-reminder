@@ -12,7 +12,7 @@ Every phase starts by re-reading the official docs for the libraries it touches 
 
 **Depends on:** [05](05-reminder-engine.md#device-scheduling), [08](08-notifications-and-platform.md), [12 device matrix](12-testing-and-slos.md#device-matrix). **Verifies:** D-072, D-073, D-074, D-075, D-076, D-078 (the spike supplies the evidence; if a result contradicts a decision, log a new conflict).
 
-- [ ] Re-check Expo SDK, expo-notifications, expo-background-task docs; note any Android 16 / iOS 26 notification changes in references
+- [x] Re-check Expo SDK, expo-notifications, expo-background-task docs; note any Android 16 / iOS 26 notification changes in references (2026-10-28: R-02, R-03, R-49–R-55; no notification/alarm changes in Android 16/17, none listed by Apple for iOS 26)
 - [ ] Create an Expo SDK 58 development build (EAS Build) for Android and iOS
 - [ ] Create versioned channels `dose_standard_v1`, `dose_alarm_v1`, `dose_gentle_v1` before the permission prompt
 - [ ] Register category `dose_v1` with Taken / Not taken / Snooze 10 min actions
@@ -28,6 +28,8 @@ Every phase starts by re-reading the official docs for the libraries it touches 
 - [ ] Background task registration and observed run frequency per phone
 - [ ] Data push (Expo, `priority: high`) to a killed app on each Android phone; record delivery (D-075)
 - [ ] Write findings into the docs; log a new conflict if any result contradicts D-072–D-078
+
+**Progress (2026-10-28):** spike code in [`spike/`](../spike/README.md) covers every item above. Items are ticked only after they pass on the phones. Found so far: the battery state is readable via `expo-battery` (no native module); the iOS `time_sensitive` state isn't exposed by expo-notifications and needs a native module ([08](08-notifications-and-platform.md#ios-interruption-levels)).
 
 **Exit gate:** alarms and lock-screen answers work with the app killed, overnight, on all 4 test phones.
 > Gate result: _not run_
