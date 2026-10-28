@@ -1,0 +1,13 @@
+{
+  "cli": { "version": ">= 26.0.0", "appVersionSource": "local" },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "spike": {
+      "distribution": "internal",
+      "android": { "buildType": "apk" }
+    }
+  }
+}

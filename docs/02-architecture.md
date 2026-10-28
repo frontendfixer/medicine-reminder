@@ -98,6 +98,7 @@ All checked on 2026-10-28; see [references.md](references.md). Pin exact version
 | Secure storage | `expo-secure-store` 58.0.2 | `AFTER_FIRST_UNLOCK` so background tasks can read the device token |
 | Local DB | `expo-sqlite` 58.0.14 | WAL; offline answer queue, dose cache |
 | Background work | `expo-background-task` 58.0.11 (+ `expo-task-manager` 58.0.12) | Refill and heartbeat |
+| Device state (Android) | `expo-battery` 58.0.3, `expo-intent-launcher` 58.0.3 | `battery_unrestricted` check and battery-optimisation settings list (D-074, [R-49, R-50](references.md)) |
 | Attestation | `@expo/app-integrity` 58.0.2 | Play Integrity + App Attest (D-013) |
 | Camera / QR | `expo-camera` 58.0.13 | Scan pairing QR |
 | Photos | `expo-image-picker` 58.0.10, `expo-image-manipulator` 58.0.15 | Pick, resize, re-encode |
