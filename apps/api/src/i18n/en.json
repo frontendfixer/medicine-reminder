@@ -20,6 +20,7 @@
   "push.pairing.title": "Phone connection",
   "push.pairing.connected": "{patient} connected on {device}",
   "push.pairing.token_rejected": "A phone for {patient} was disconnected. Pair it again with a new code",
+  "push.pairing.signed_in_elsewhere": "You were signed in on another phone",
   "push.pairing.timezone_changed": "{patient}'s reminders now follow {timezone}",
   "push.billing.title": "Subscription",
   "push.billing.expired": "Your subscription has ended. Reminders stop tomorrow unless you renew",

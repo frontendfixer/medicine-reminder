@@ -1,9 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { ApiException } from '../common/api-exception.js';
 import type { Db } from '../db/client.js';
 import { DB } from '../db/database.module.js';
-import { authSessions, caregiverSettings, consents, devices, users } from '../db/schema.js';
+import { authSessions, caregiverSettings, consents, devices, notificationLog, patients, users } from '../db/schema.js';
 import { RateLimiter } from '../redis/rate-limiter.js';
 import type { DeviceInfo, LoginBody, RegisterBody } from './auth.dto.js';
 import { EntitlementsService } from '../billing/entitlements.service.js';
@@ -23,6 +23,7 @@ export interface AuthResult {
   refresh_token: string;
   user: { id: string; email: string };
   session_replaced_previous: boolean;
+  self_profile_device_token?: string;
 }
 
 @Injectable()
@@ -110,9 +111,9 @@ export class AuthService {
         .update(authSessions)
         .set({ revokedAt: sql`now()`, revokedReason: 'logout' })
         .where(and(eq(authSessions.id, sessionId), isNull(authSessions.revokedAt)))
-        .returning({ deviceId: authSessions.deviceId });
+        .returning({ deviceId: authSessions.deviceId, userId: authSessions.userId });
       if (session?.deviceId) await tx.update(devices).set({ revokedAt: sql`now()` }).where(and(eq(devices.id, session.deviceId), isNull(devices.revokedAt)));
-      // The self-profile device on this phone is revoked here once self profiles exist (D-083).
+      if (session) await this.revokeSelfProfilePhones(tx, session.userId); // D-083: the self profile's phone goes with the login
     });
   }
 
@@ -125,7 +126,11 @@ export class AuthService {
       .set({ revokedAt: sql`now()`, revokedReason: 'replaced' })
       .where(and(eq(authSessions.userId, user.id), isNull(authSessions.revokedAt)))
       .returning({ id: authSessions.id });
-    await tx.update(devices).set({ revokedAt: sql`now()` }).where(and(eq(devices.userId, user.id), isNull(devices.revokedAt)));
+    const oldPhones = await tx
+      .update(devices)
+      .set({ revokedAt: sql`now()` })
+      .where(and(eq(devices.userId, user.id), isNull(devices.revokedAt)))
+      .returning({ id: devices.id, pushToken: devices.pushToken });
 
     const [row] = await tx
       .insert(devices)
@@ -145,12 +150,36 @@ export class AuthService {
       .values({ userId: user.id, deviceId: row!.id, refreshHash: refresh.hash, lastUsedAt: sql`now()` })
       .returning({ id: authSessions.id });
 
+    // "You were signed in on another phone" to the phone we just signed out (D-019), unless it is this very phone.
+    const stale = oldPhones.filter((p) => p.pushToken && p.pushToken !== device.push_token);
+    if (stale.length) await tx.insert(notificationLog).values(stale.map((p) => ({ kind: 'pairing' as const, deviceId: p.id, data: { event: 'signed_in_elsewhere' } })));
+
+    const selfProfileDeviceToken = await this.moveSelfProfilePhone(tx, user.id, device);
     return {
       access_token: await this.tokens.signAccess({ sub: user.id, sid: session!.id }),
       refresh_token: refresh.token,
       user: { id: user.id, email: user.email },
       session_replaced_previous: replaced.length > 0,
+      ...(selfProfileDeviceToken ? { self_profile_device_token: selfProfileDeviceToken } : {}),
     };
+  }
+
+  // The self profile follows the login: its old phone is revoked and this phone gets a fresh token (06#caregiver-login).
+  private async moveSelfProfilePhone(tx: Tx, userId: string, device: DeviceInfo): Promise<string | null> {
+    const [self] = await tx
+      .select({ id: patients.id })
+      .from(patients)
+      .where(and(eq(patients.ownerUserId, userId), eq(patients.type, 'self'), sql`${patients.status} in ('active','suspended')`));
+    if (!self) return null;
+    await this.revokeSelfProfilePhones(tx, userId);
+    const { token, hash } = this.tokens.newDeviceToken();
+    await tx.insert(devices).values({ patientId: self.id, tokenHash: hash, platform: device.platform, label: device.label, appVersion: device.app_version, tz: device.tz, pushToken: device.push_token, lastSeenAt: sql`now()` });
+    return token;
+  }
+
+  private async revokeSelfProfilePhones(tx: Tx, userId: string): Promise<void> {
+    const own = tx.select({ id: patients.id }).from(patients).where(and(eq(patients.ownerUserId, userId), eq(patients.type, 'self')));
+    await tx.update(devices).set({ revokedAt: sql`now()` }).where(and(isNull(devices.revokedAt), inArray(devices.patientId, own)));
   }
 }
 

@@ -84,7 +84,7 @@ Cursor-based: `?cursor=<opaque>&limit=<1..100>` → `{ "items": [...], "next_cur
 - **Throttling** (Redis, so losing it only resets counters). These numbers are suggestions, not decisions:
   - **Per account:** keyed by the email address, so unknown emails behave identically. Every attempt is counted atomically. The first 5 are free, then the delay is 30 s, doubling to a 15 minute cap; a delay blocks even the right password. A successful sign-in resets it; the count is forgotten after an hour without attempts.
   - **Per IP:** 30 sign-in attempts per 10 minutes, 10 registrations per hour. Behind a proxy the app must set `trust proxy` so `req.ip` is the client.
-- **Not built yet:** the push to the old phone ("Signed in on another phone", Phase 3 push sender) and `self_profile_device_token` (self-profile item). `session_replaced_previous` is returned already.
+- **Sign-in on a new phone** also (a) queues "You were signed in on another phone" for the phone it signed out (kind `pairing`, event `signed_in_elsewhere`; sent to that revoked device on purpose; skipped when the push token is the same phone's), and (b) moves the self profile's device: the old self-profile device is revoked and a new token comes back as `self_profile_device_token` (only when the caregiver has an active or suspended self profile). Logout revokes the self-profile device too (D-083).
 
 Emails are trimmed and lower-cased. Passwords are never logged or echoed.
 

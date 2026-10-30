@@ -45,7 +45,8 @@ export class NotificationComposer {
 
     for (const row of rows) {
       const target = row.deviceId ? device.get(row.deviceId) : undefined;
-      if (!target?.pushToken || target.pushInvalidAt || target.revokedAt) continue;
+      const toOldPhone = (row.data as Data | null)?.event === 'signed_in_elsewhere'; // the one message meant for a phone we just signed out
+      if (!target?.pushToken || target.pushInvalidAt || (target.revokedAt && !toOldPhone)) continue;
       const p = row.patientId ? patient.get(row.patientId) : undefined;
       const d = row.doseInstanceId ? dose.get(row.doseInstanceId) : undefined;
       const message = this.build(row, target.pushToken, p && { id: p.id, name: this.encryption.decrypt('patients.display_name', p.displayName), timezone: p.timezone }, d, (row.data ?? {}) as Data);
@@ -111,6 +112,7 @@ export class NotificationComposer {
       case 'window_low':
         return { to, title: t('push.window_low.title'), body: t('push.window_low.body'), data: { type: 'window_low' }, priority: 'high', sound: 'default' }; // D-039, D-093
       case 'pairing': {
+        if (str(data.event) === 'signed_in_elsewhere') return { to, title: t('push.pairing.title'), body: t('push.pairing.signed_in_elsewhere'), data: { type: 'signed_in_elsewhere' }, priority: 'high', sound: 'default' };
         if (!p) return null;
         const event = str(data.event);
         const body =

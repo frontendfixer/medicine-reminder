@@ -54,6 +54,12 @@ export class TokensService {
     return { token, hash: this.hashRefresh(token) };
   }
 
+  // A patient-device token, hashed exactly as pairing hashes them (PairingService.hashDeviceToken).
+  newDeviceToken(): { token: string; hash: string } {
+    const token = randomBytes(32).toString('base64url');
+    return { token, hash: this.hmac.hex('device-token', token) };
+  }
+
   hashRefresh(token: string): string {
     return this.hmac.hex('refresh-token', token);
   }
