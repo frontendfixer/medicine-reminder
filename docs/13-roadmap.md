@@ -111,14 +111,14 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 - [x] Grouping within 15 min via `group_key` / collapse ID (2026-10-30)
 - [x] Not taken immediate alert; corrections for late answers; self profile once-only rule (2026-10-30)
 - [x] Device-health job: 6 h heartbeat, permissions, window < 24 h, invalid push token; 12 h throttle (2026-10-30)
-- [ ] Transfer code + redeem (quota, `as_self`), everything moves intact, both sides audited
-- [ ] RevenueCat SDK in app; paywall; `subscription/refresh`
-- [ ] Webhook endpoint: auth header/HMAC, event-ID dedupe, async re-fetch via API v2
-- [ ] Daily reconciliation job
+- [x] Transfer code + redeem (quota, `as_self`), everything moves intact, both sides audited (2026-10-30)
+- [~] `subscription/refresh` done server-side (2026-10-30); the SDK and paywall are app work
+- [x] Webhook endpoint: auth header, event-ID dedupe, async re-fetch via API v2 (HMAC signature not implemented: the docs describe only the Authorization header) (2026-10-30; live RevenueCat calls untested without a key)
+- [x] Daily reconciliation job (2026-10-30)
 - [ ] Store grace periods enabled in Play Console and App Store Connect
-- [ ] 1-day grace: warnings at expiry and −6 h; patient banner
+- [x] 1-day grace: warnings at expiry and −6 h; patient banner (`account_state: grace` in sync) (2026-10-30)
 - [x] Cutoff (sweeper Pass C): suspend patients + self profile, `cancel_all`, "Reminders paused"; 6-hour warning (2026-10-30)
-- [ ] Suspended read-only enforcement; renewal restore + re-sync within a minute
+- [x] Suspended read-only enforcement; renewal restore + re-sync push queued (2026-10-30)
 - [ ] Dashboards: sweeper lag, push receipts, device health ([14](14-release-and-ops.md#monitoring))
 
 **Exit gate:** a missed dose alerts the caregiver once, at the configured delay.

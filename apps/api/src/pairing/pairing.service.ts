@@ -22,7 +22,7 @@ const CHALLENGE_TTL_SECONDS = 300;
 const LIMITS = { ip: [10, 60_000], install: [5, 600_000], global: [300, 60_000] } as const;
 
 type CodeKind = 'pair' | 'transfer';
-type CodeRow = typeof pairingCodes.$inferSelect;
+export type CodeRow = typeof pairingCodes.$inferSelect;
 
 @Injectable()
 export class PairingService {
@@ -84,29 +84,7 @@ export class PairingService {
   async redeem(body: RedeemBody, ip: string) {
     await this.rateLimit(ip, body.device.install_id);
 
-    const code = normalizeCode(body.code);
-    if (!code) throw invalid();
-    const lookup = this.hmac.hex('code-lookup', 'pair', lookupPart(code));
-    const full = this.hmac.hex('code-full', 'pair', code);
-
-    // 1. Find the code without locking: redeem takes locks in the same order as everything else
-    //    (subscription, patient, code), so it can't deadlock with code generation.
-    const candidates = await this.db
-      .select()
-      .from(pairingCodes)
-      .where(and(eq(pairingCodes.lookupHash, lookup), eq(pairingCodes.kind, 'pair'), gt(pairingCodes.createdAt, sql`now() - interval '1 day'`)));
-    const match = candidates.find((c) => c.codeHash === full);
-    if (!match) {
-      // A wrong code against a live lookup ID counts as a failed attempt on that code (D-084).
-      const live = candidates.filter((c) => isLive(c));
-      if (live.length) {
-        await this.db
-          .update(pairingCodes)
-          .set({ failedAttempts: sql`${pairingCodes.failedAttempts} + 1` })
-          .where(inArray(pairingCodes.id, live.map((c) => c.id)));
-      }
-      throw invalid();
-    }
+    const match = await this.locate('pair', body.code);
 
     const [owner] = await this.db.select({ ownerUserId: patients.ownerUserId }).from(patients).where(eq(patients.id, match.patientId));
     if (!owner) throw invalid();
@@ -172,6 +150,29 @@ export class PairingService {
     return result;
   }
 
+  // Finds the code a person typed, without locking (so it can't deadlock with code generation: locks are always
+  // subscription, patient, code). A wrong code against a live lookup ID counts as a failed attempt on that code (D-084).
+  async locate(kind: CodeKind, rawCode: string): Promise<CodeRow> {
+    const code = normalizeCode(rawCode);
+    if (!code) throw invalid();
+    const lookup = this.hmac.hex('code-lookup', kind, lookupPart(code));
+    const full = this.hmac.hex('code-full', kind, code);
+    const candidates = await this.db
+      .select()
+      .from(pairingCodes)
+      .where(and(eq(pairingCodes.lookupHash, lookup), eq(pairingCodes.kind, kind), gt(pairingCodes.createdAt, sql`now() - interval '1 day'`)));
+    const match = candidates.find((c) => c.codeHash === full);
+    if (match) return match;
+    const live = candidates.filter((c) => isLive(c));
+    if (live.length) {
+      await this.db
+        .update(pairingCodes)
+        .set({ failedAttempts: sql`${pairingCodes.failedAttempts} + 1` })
+        .where(inArray(pairingCodes.id, live.map((c) => c.id)));
+    }
+    throw invalid();
+  }
+
   hashDeviceToken(token: string): string {
     return this.hmac.hex('device-token', token);
   }
@@ -189,6 +190,6 @@ export class PairingService {
   }
 }
 
-const isLive = (c: CodeRow) => !c.usedAt && !c.invalidatedAt && c.expiresAt > new Date() && c.failedAttempts < MAX_FAILED_ATTEMPTS;
-const invalid = () => new ApiException('CODE_INVALID', 'That code is not right.');
-const expired = () => new ApiException('CODE_EXPIRED_OR_USED', 'That code has expired or was already used. Ask for a new one.');
+export const isLive = (c: CodeRow) => !c.usedAt && !c.invalidatedAt && c.expiresAt > new Date() && c.failedAttempts < MAX_FAILED_ATTEMPTS;
+export const invalid = () => new ApiException('CODE_INVALID', 'That code is not right.');
+export const expired = () => new ApiException('CODE_EXPIRED_OR_USED', 'That code has expired or was already used. Ask for a new one.');

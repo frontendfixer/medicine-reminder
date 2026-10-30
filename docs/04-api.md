@@ -236,6 +236,8 @@ Rules: [05-reminder-engine](05-reminder-engine.md#answers-and-sync).
 | `POST /v1/patients/{patientId}/transfer-code` | caregiver (owner) | — | `201 { code, qr_payload, expires_at }`. Same format and lifetime as pairing codes, kind `transfer` |
 | `POST /v1/transfers/redeem` | caregiver (receiver) | `{ code, as_self: boolean }` | `200 Patient`. Quota check for `managed`. `as_self: true` makes it the receiver's self profile (D-050). Both sides audited |
 
+**Implementation** (`apps/api/src/transfer/`): `transfers/redeem` is exempt from `Idempotency-Key` (D-098) and limited to 10 attempts a minute per receiver. Locks are taken in the order receiver's subscription, patient, code. Only `owner_user_id` (and `type` when `as_self`) changes, so medicines, schedule versions, dose history, phones and device tokens stay as they are, and `alert_due_at` on existing doses is not touched. Any pairing code the old owner made earlier is cancelled. Both sides get a `transfer.redeemed` audit row (`role: sender | receiver`) in the patient's log, so the new owner can read it. Your own patient's code, a wrong code, a used code and a `pair` code all fail (`CODE_INVALID` or `CODE_EXPIRED_OR_USED`). A suspended patient can't be transferred.
+
 ## Settings
 
 | Method & path | Auth | Request | Response |
@@ -250,6 +252,8 @@ Rules: [05-reminder-engine](05-reminder-engine.md#answers-and-sync).
 | `GET /v1/subscription` | caregiver | — | `200 { plan, patient_limit, managed_patients, status, renews_at, expired_at, cutoff_at }`. With no subscription: `plan: null`, `status: null`, `patient_limit: 0` (the app shows the paywall). `managed_patients` counts active managed patients only |
 | `POST /v1/subscription/refresh` | caregiver | — | `200 Subscription`. Re-fetches from RevenueCat after a purchase or restore |
 | `POST /v1/webhooks/revenuecat` | webhook | RevenueCat event | `200` fast; processed async, deduped by event `id` ([07](07-subscriptions-and-billing.md#revenuecat-webhooks)) |
+
+**Implementation** (`apps/api/src/billing/`): the webhook only verifies the `Authorization` header (constant-time; nothing is accepted if `REVENUECAT_WEBHOOK_AUTH` is not set), records the event in `rc_webhook_events` and returns `200`. The worker (`rc-events`, every 10 s) then re-reads the customer's active entitlements from RevenueCat API v2 and applies the state machine from 07, so the event body is never trusted for state. `REVENUECAT_PLAN_MAP` (JSON, entitlement ID → plan) maps entitlements; with none active the 1-day grace starts, and a renewal restores suspended patients, rebuilds their doses and queues a `sync` push. `BILLING_ISSUE` with access still granted is `store_grace`. SANDBOX events are ignored in production. `rc-reconcile` runs daily at 04:00 UTC over live accounts and those expired in the last 90 days, paced under 480 requests a minute. With no RevenueCat key (development) every sync is a no-op, so the dev Starter stub is left alone; production refuses to start without the key.
 
 ## Privacy
 

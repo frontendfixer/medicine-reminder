@@ -12,13 +12,15 @@ import { resetTestDb, testDatabaseUrl } from '../db/test-db.js';
 export type Caregiver = { id: string; token: string; email: string };
 type Method = 'get' | 'post' | 'patch' | 'delete';
 
-export async function startApp(extra: { controllers?: unknown[]; imports?: unknown[] } = {}) {
+export async function startApp(extra: { controllers?: unknown[]; imports?: unknown[]; overrides?: [unknown, unknown][] } = {}) {
   const made = await resetTestDb();
   await made.pool.end();
   process.env.DATABASE_URL = testDatabaseUrl();
   process.env.REDIS_URL = process.env.REDIS_URL_TEST!;
   const redis = new Redis(process.env.REDIS_URL_TEST!);
-  const app: INestApplication = (await Test.createTestingModule({ imports: [AppModule, ...((extra.imports ?? []) as never[])], controllers: (extra.controllers ?? []) as never[] }).compile()).createNestApplication();
+  let builder = Test.createTestingModule({ imports: [AppModule, ...((extra.imports ?? []) as never[])], controllers: (extra.controllers ?? []) as never[] });
+  for (const [token, value] of extra.overrides ?? []) builder = builder.overrideProvider(token as never).useValue(value);
+  const app: INestApplication = (await builder.compile()).createNestApplication();
   await app.listen(0);
   const db = app.get<Db>(DB);
   const http = () => request(app.getHttpServer());

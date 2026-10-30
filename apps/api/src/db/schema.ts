@@ -401,6 +401,7 @@ export const rcWebhookEvents = pgTable('rc_webhook_events', {
   type: text().notNull(),
   appUserId: text('app_user_id'),
   eventTimestamp: ts('event_timestamp'),
+  payload: jsonb(), // the event as received; the worker reads it to know whose subscription to re-read
   receivedAt: ts('received_at').notNull().defaultNow(),
   processedAt: ts('processed_at'),
 });

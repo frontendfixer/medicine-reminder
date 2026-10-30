@@ -2,6 +2,7 @@ import { Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } fro
 import { Queue, Worker, type Job } from 'bullmq';
 import { Redis } from 'ioredis';
 import { OutboxSender } from '../push/outbox-sender.js';
+import { SubscriptionSyncService } from '../billing/revenuecat/subscription-sync.service.js';
 import { DoseGeneratorService } from './dose-generator.service.js';
 import { HealthService } from './health.service.js';
 import { SweeperService } from './sweeper.service.js';
@@ -16,6 +17,8 @@ export const SCHEDULERS = [
   { id: 'push-receipts', repeat: { every: 15 * 60_000 } },
   { id: 'device-health', repeat: { every: 15 * 60_000 } },
   { id: 'dose-generator', repeat: { pattern: '0 0 2 * * *', tz: 'UTC' } },
+  { id: 'rc-events', repeat: { every: 10_000 } },
+  { id: 'rc-reconcile', repeat: { pattern: '0 0 4 * * *', tz: 'UTC' } },
 ] as const;
 
 @Injectable()
@@ -30,6 +33,7 @@ export class JobsService implements OnModuleInit, OnApplicationShutdown {
     private readonly sender: OutboxSender,
     private readonly health: HealthService,
     private readonly generator: DoseGeneratorService,
+    private readonly subscriptions: SubscriptionSyncService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -62,6 +66,10 @@ export class JobsService implements OnModuleInit, OnApplicationShutdown {
         return this.health.alertUnhealthy();
       case 'dose-generator':
         return this.generator.generateAll();
+      case 'rc-events':
+        return this.subscriptions.processPending();
+      case 'rc-reconcile':
+        return this.subscriptions.reconcile();
       default:
         this.log.warn(`Unknown job ${job.name}`);
         return null;
