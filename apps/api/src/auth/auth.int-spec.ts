@@ -248,8 +248,8 @@ describe('access tokens', () => {
     expect((await http().get('/v1/test/whoami').set(bearer(mixed))).status).toBe(401);
   });
 
-  it('is deny-by-default: only the hello route and auth entry points are public', async () => {
-    expect((await http().get('/')).status).toBe(200);
+  it('is deny-by-default: only app config and the auth entry points are public', async () => {
+    expect((await http().get('/v1/app/config')).status).toBe(200);
     expect((await http().post('/v1/auth/logout')).status).toBe(401);
   });
 });

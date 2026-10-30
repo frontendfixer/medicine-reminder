@@ -6,6 +6,25 @@ Every phase starts by re-reading the official docs for the libraries it touches 
 
 ---
 
+## Backend status (2026-10-30)
+
+Per [D-098](01-decisions.md#d-098-backend-built-in-one-pass-caller-less-redeem-routes-are-exempt-from-idempotency-key) the whole API in [04](04-api.md) and the jobs in [05](05-reminder-engine.md), [07](07-subscriptions-and-billing.md) and [09](09-missed-dose-alerts.md) are built. Every documented route is served (checked against the app's own route table), and CI runs the unit tests, the integration tests on real PostgreSQL 18 and Redis 8, and the isolation matrix.
+
+**What the ticks below do and do not mean.** A ticked item is built and tested against fakes or real local services. **No exit gate has passed.** Still open, and not something more code can close:
+
+| Open | Why |
+| --- | --- |
+| Phase 1 gate: a real phone pairs and a revoked device is refused | Needs the mobile app |
+| Phase 3 gate: test doses fire on a locked, idle Android phone, online and offline, overnight | Needs the mobile app and a phone; D-097 checklist |
+| Live calls to R2, Expo Push, RevenueCat and Sentry | Need your credentials. Tested against fakes; `S3ObjectStorage`, `ExpoPushTransport` and `HttpRevenueCatClient` have not touched the real services |
+| Play Integrity / App Attest verification | Log-only; the token is recorded, not verified (D-013) |
+| GitHub Actions workflow | Written and syntax-checked; never run on GitHub |
+| OI-01 plans and prices, OI-19 grievance contact, C-10 legal review, OI-29 iOS checks | Owner or counsel decisions |
+| Mobile app, push permission onboarding UI, i18n lint rule, store listings, restore drill, OEM checks, beta | Phases 3 and 5 |
+| Not built | Patient-side "Stop sharing" (unpair), dashboards (the sweeper logs its results; no metrics endpoint), RevenueCat customer deletion on account deletion, orphaned-photo cleanup sweep, HMAC signature check on the RevenueCat webhook (RevenueCat documents only the Authorization header) |
+
+---
+
 ## Phase 0 — dropped ([D-097](01-decisions.md#d-097-no-phase-0-spike-fewer-tests-reliability-checked-in-phase-3))
 
 The reminder spike is removed; work starts at Phase 1. Its reliability checks moved to Phase 3, and its docs re-check is done (2026-10-28: R-02, R-03, R-49–R-55; no notification/alarm changes in Android 16/17, none listed by Apple for iOS 26).

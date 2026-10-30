@@ -24,7 +24,6 @@ type Ids = Record<'patientId' | 'medicineId' | 'deviceId' | 'requestId', string>
 type Kind = 'public' | 'device' | 'self' | 'scoped';
 const medicine = { name: 'Intruder', schedule: { pattern: 'daily', start_date: '2026-01-01', times: [{ local_time: '08:00', amount_text: '1' }] } };
 const REGISTRY: Record<string, { kind: Kind; body?: (ids: Ids) => object }> = {
-  'GET /': { kind: 'public' },
   'GET /v1/app/config': { kind: 'public' },
   'POST /v1/auth/login': { kind: 'public' },
   'POST /v1/auth/refresh': { kind: 'public' },

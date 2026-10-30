@@ -1,7 +1,5 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
 import { ApiExceptionFilter } from './common/api-exception.filter.js';
 import { AppConfigModule } from './app-config/app-config.module.js';
 import { AuditModule } from './audit/audit.module.js';
@@ -25,7 +23,6 @@ import { RedisModule } from './redis/redis.module.js';
 
 @Module({
   imports: [DatabaseModule, CryptoModule, RedisModule, IdempotencyModule, AuthModule, BillingModule, AuditModule, PatientsModule, PairingModule, DevicesModule, AppConfigModule, MedicinesModule, SettingsModule, StorageModule, UploadsModule, DeviceSyncModule, HistoryModule, TransferModule, PrivacyModule],
-  controllers: [AppController],
-  providers: [AppService, { provide: APP_FILTER, useClass: ApiExceptionFilter }],
+  providers: [{ provide: APP_FILTER, useClass: ApiExceptionFilter }],
 })
 export class AppModule {}
