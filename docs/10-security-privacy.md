@@ -31,6 +31,12 @@ Decisions: [D-066](01-decisions.md#d-066-security-baseline), [D-067](01-decision
 ### Field-level encryption
 - Encrypted columns: `medicines.name`, `medicines.notes`, `dose_instances.name_snapshot`, `patients.display_name` (D-082).
 - AES-256-GCM with a per-row random nonce. A data key (DEK) is wrapped by a key in the cloud KMS / secret manager. The key ID is stored with the ciphertext (`v1:<kid>:<nonce>:<ct>`) to allow rotation.
+- Implementation (`apps/api/src/crypto/field-encryption.ts`):
+  - 96-bit random IV per value and a 128-bit tag ([R-63](references.md)). A key can encrypt about 2³² values before it must be retired (NIST SP 800-38D 8.3), which rotation covers at this scale.
+  - The AAD is `v1:<kid>:<table.column>`, so a ciphertext copied to another column, or with an edited key ID, fails to decrypt. Because the snapshot is a separate column, `dose_instances.name_snapshot` is decrypted from `medicines.name` and re-encrypted under its own field.
+  - Stored in the `bytea` column as the UTF-8 bytes of `v1:<kid>:<iv>:<ciphertext‖tag>` (base64url parts).
+  - Keys come from the secret manager as `FIELD_ENCRYPTION_KEYS=kid:base64,…` with `FIELD_ENCRYPTION_ACTIVE_KID`. Old key IDs stay in the set while any value still uses them; `isCurrent()` finds values to re-encrypt. Wrapping the keys with a cloud KMS is not done yet, because the hosting provider is not chosen.
+  - Errors never contain plaintext, keys or ciphertext.
 - Decryption happens only in the API process, just before serialising responses to an authorised principal.
 - Consequence: no SQL search or sort on these fields. Sorting by name happens in the app.
 

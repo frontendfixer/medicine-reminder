@@ -95,6 +95,7 @@ All entries were checked on **2026-10-28** unless stated otherwise (R-56 to R-60
 | R-60 | pnpm workspaces | https://pnpm.io/workspaces | Checked 2026-10-30. Root `pnpm-workspace.yaml` with `packages:`; `workspace:*` protocol. pnpm 11.24.0 is installed locally. The page doesn't cover pnpm 11 specifics |
 | R-61 | PostgreSQL 18 — UUID functions | https://www.postgresql.org/docs/18/functions-uuid.html | Checked 2026-10-30. Built-in `uuidv7([shift interval])` (time-ordered); `gen_random_uuid()` / `uuidv4()` still exist. Confirmed on `postgres:18-alpine` (18.6). Table IDs default to `uuidv7()` |
 | R-62 | pnpm — build settings | https://pnpm.io/settings/build | Checked 2026-10-30. `allowBuilds` in `pnpm-workspace.yaml` maps a package to `true`/`false`; `strictDepBuilds` defaults to `true` and fails the install on unreviewed build scripts. We set `esbuild: false` |
+| R-63 | Node.js crypto (AES-GCM); NIST SP 800-38D | https://nodejs.org/api/crypto.html · https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf | Checked 2026-10-30 (Node page read up to character 200 000 of 330 000). `createCipheriv('aes-256-gcm', key, iv, { authTagLength })`; `setAAD` before `update`; `getAuthTag` after `final`; `setAuthTag` before `final`; GCM tag defaults to 16 bytes; `final()` throws on a bad tag. NIST 8.2.2: RBG-based IV, random field at least 96 bits; recommended IV length 96 bits; 8.3: at most 2^32 invocations per key with random IVs |
 
 ## Not yet checked (check before the phase that needs it)
 
