@@ -29,7 +29,7 @@ Decisions: [D-066](01-decisions.md#d-066-security-baseline), [D-067](01-decision
 | On-device | Device token and refresh token in `expo-secure-store`. SQLite holds cached medicine data; consider SQLCipher (`useSQLCipher`, [R-05](references.md)) (suggestion, not decided) |
 
 ### Field-level encryption
-- Encrypted columns: `medicines.name`, `medicines.notes`, `dose_instances.name_snapshot`, `patients.display_name` (D-082).
+- Encrypted columns: `medicines.name`, `medicines.notes`, `dose_instances.name_snapshot`, `patients.display_name` (D-082), and `idempotency_keys.response_body` (cached responses can contain medicine names).
 - AES-256-GCM with a per-row random nonce. A data key (DEK) is wrapped by a key in the cloud KMS / secret manager. The key ID is stored with the ciphertext (`v1:<kid>:<nonce>:<ct>`) to allow rotation.
 - Implementation (`apps/api/src/crypto/field-encryption.ts`):
   - 96-bit random IV per value and a 128-bit tag ([R-63](references.md)). A key can encrypt about 2³² values before it must be retired (NIST SP 800-38D 8.3), which rotation covers at this scale.

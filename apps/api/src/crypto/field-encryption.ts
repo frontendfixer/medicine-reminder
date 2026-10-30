@@ -7,7 +7,8 @@ export type EncryptedField =
   | 'medicines.name'
   | 'medicines.notes'
   | 'dose_instances.name_snapshot'
-  | 'patients.display_name';
+  | 'patients.display_name'
+  | 'idempotency_keys.response_body'; // cached responses can contain medicine names
 
 const VERSION = 'v1';
 const KEY_BYTES = 32; // AES-256

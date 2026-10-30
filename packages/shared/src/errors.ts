@@ -1,0 +1,28 @@
+// API error codes and their HTTP status. Source: docs/04-api.md#errors. Change the doc first.
+export const ERROR_STATUS = {
+  VALIDATION_FAILED: 400,
+  UNAUTHENTICATED: 401,
+  INVALID_CREDENTIALS: 401,
+  SESSION_REPLACED: 401,
+  DEVICE_TOKEN_REJECTED: 401,
+  FORBIDDEN: 403,
+  SUBSCRIPTION_INACTIVE: 403,
+  PATIENT_SUSPENDED: 403,
+  NOT_FOUND: 404,
+  EMAIL_TAKEN: 409,
+  PATIENT_LIMIT_REACHED: 409,
+  DEVICE_LIMIT_REACHED: 409,
+  IDEMPOTENCY_KEY_REUSED: 409,
+  REQUEST_IN_PROGRESS: 409,
+  CODE_EXPIRED_OR_USED: 410,
+  CODE_INVALID: 422,
+  UPGRADE_REQUIRED: 426,
+  RATE_LIMITED: 429,
+  INTERNAL: 500,
+} as const;
+
+export type ErrorCode = keyof typeof ERROR_STATUS;
+
+export interface ApiErrorBody {
+  error: { code: ErrorCode; message: string; details: Record<string, unknown> };
+}

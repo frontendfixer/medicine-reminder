@@ -1,12 +1,10 @@
-import { fileURLToPath } from 'node:url';
 import { sql } from 'drizzle-orm';
-import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { createDb } from './client.js';
+import type { Db } from './client.js';
 import * as s from './schema.js';
+import { resetTestDb } from './test-db.js';
 
-const url = process.env.DATABASE_URL_TEST;
-if (!url) throw new Error('DATABASE_URL_TEST is not set (see apps/api/.env.example)');
-const { db, pool } = createDb(url);
+let db: Db;
+let pool: { end(): Promise<void> };
 
 const bytes = (text: string) => Buffer.from(text);
 const ago = (min: number) => new Date(Date.now() - min * 60_000);
@@ -49,10 +47,7 @@ async function version(medicineId: string, over: Partial<typeof s.scheduleVersio
 }
 
 beforeAll(async () => {
-  await db.execute(sql`drop schema if exists public cascade`);
-  await db.execute(sql`drop schema if exists drizzle cascade`);
-  await db.execute(sql`create schema public`);
-  await migrate(db, { migrationsFolder: fileURLToPath(new URL('../../drizzle', import.meta.url)) });
+  ({ db, pool } = await resetTestDb());
 });
 afterAll(() => pool.end());
 

@@ -22,8 +22,8 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 - [x] Re-check NestJS, Drizzle, BullMQ, Redis minimum version docs; record in references (2026-10-30: R-56–R-60)
 - [x] Postgres 18 + Drizzle schema and migrations for all tables in [03](03-data-model.md) (including the D-082 additions; `otp_challenges` skipped, v1.1) (2026-10-30)
 - [x] Field-level encryption helper + key management (env keys from the secret manager, rotation by key ID; cloud KMS wrapping waits for the hosting choice) (2026-10-30)
-- [ ] Idempotency-Key interceptor + `idempotency_keys` table
-- [ ] Error format and codes per [04](04-api.md#errors)
+- [x] Idempotency-Key interceptor + `idempotency_keys` table (2026-10-30; exemptions for caller-less routes: OI-30)
+- [x] Error format and codes per [04](04-api.md#errors) (`ApiException` + global filter; codes in `@med/shared`) (2026-10-30)
 - [ ] Auth: email + password register/login (Argon2id + pepper, 8–128 chars, generic errors, per-account and per-IP throttling), refresh rotation, logout (D-095)
 - [ ] One active caregiver login: session replacement + "signed in elsewhere" notice
 - [ ] `caregiver_settings` with defaults (30 min, full, false)

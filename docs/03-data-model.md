@@ -297,7 +297,7 @@ Added by D-082 for sessions (one login), `Idempotency-Key` (kept 24 h, D-083), w
 | --- | --- | --- |
 | `auth_sessions` | `id`, `user_id`, `device_id`, `refresh_hash`, `created_at`, `last_used_at`, `revoked_at`; partial unique on `user_id` where `revoked_at is null` | One active login (D-019), refresh rotation |
 | `otp_challenges` | `id`, `email`, `code_hash`, `expires_at`, `attempts`, `consumed_at`, `created_at` | **v1.1** — email OTP sign-in and verification (D-095) |
-| `idempotency_keys` | `principal` (user or device id), `key`, `method_path`, `request_hash`, `status_code`, `response_body jsonb`, `created_at`; PK (`principal`, `key`) | D-058 |
+| `idempotency_keys` | `principal` (user or device id), `key`, `method_path`, `request_hash`, `status_code`, `response_body jsonb`, `created_at`; PK (`principal`, `key`) | D-058. `request_hash` is an HMAC; `status_code` null = request in progress; `response_body` holds the encrypted response as a JSON string |
 | `rc_webhook_events` | `event_id` PK, `type`, `app_user_id`, `event_timestamp`, `received_at`, `processed_at` | Dedupe by event ID (D-051). `subscriptions.last_event_id` alone can't dedupe out-of-order retries |
 | `consents` | `id`, `subject_type` (caregiver/patient), `user_id`, `patient_id`, `device_id`, `kind` (signup/pairing), `notice_version`, `given_at`, `withdrawn_at` | DPDP proof of consent (D-067, C-10) |
 

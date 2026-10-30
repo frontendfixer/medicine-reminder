@@ -18,6 +18,13 @@ All `device` endpoints are scoped to the token's `patient_id`. All `caregiver` e
 - Every `POST`, `PATCH` and `DELETE` accepts `Idempotency-Key: <uuid>`. It is required on all writes except `auth/*` and the webhook.
 - The server stores (`principal`, `key`) → request hash + response. It replays the stored response for an identical retry. A different body with the same key gets `409 IDEMPOTENCY_KEY_REUSED`. Records are kept for 24 hours per principal ([D-083](01-decisions.md#d-083-sign-out-endpoint-and-idempotency-retention)).
 - `POST /v1/device/dose-responses` is additionally idempotent per item by `client_event_id`.
+- **How it works** (`apps/api/src/idempotency/`):
+  - The key is a UUID; a missing or malformed key is `400 VALIDATION_FAILED`. The server claims `(principal, key)` atomically before running the handler, so concurrent identical requests run it once.
+  - The request hash is an HMAC of method, path, query and the body with sorted keys, so reordered JSON counts as the same request. Same key with a different hash, method or path is `409 IDEMPOTENCY_KEY_REUSED`.
+  - A retry that arrives while the first is still running gets `409 REQUEST_IN_PROGRESS` with `Retry-After: 1`. A claim with no result after 60 s is treated as abandoned and can be taken over.
+  - Stored: `2xx` responses and expected `4xx` errors, replayed with the same status and body plus `Idempotent-Replayed: true`. Not stored: `5xx`, `408`, `425`, `429` and unexpected errors; the key is released so the retry runs again.
+  - Stored responses are encrypted (they can contain medicine names).
+  - A write without a caller (no principal) fails closed with `500`; such routes must be marked exempt on purpose (see OI-30).
 
 ### Errors
 ```json
@@ -39,10 +46,14 @@ All `device` endpoints are scoped to the token's `patient_id`. All `caregiver` e
 | 409 | `PATIENT_LIMIT_REACHED` | Quota (D-053) |
 | 409 | `DEVICE_LIMIT_REACHED` | 3 active devices (D-018, [D-084](01-decisions.md#d-084-pairing-limits-device-limit-and-code-lookup)) |
 | 409 | `IDEMPOTENCY_KEY_REUSED` | See above |
+| 409 | `REQUEST_IN_PROGRESS` | Same key, first request still running (`Retry-After: 1`) |
 | 410 | `CODE_EXPIRED_OR_USED` | Pairing/transfer code expired, used, superseded or locked |
 | 422 | `CODE_INVALID` | Wrong code (counts toward lock and rate limit) |
 | 426 | `UPGRADE_REQUIRED` | App below minimum version (`X-App-Version` header) |
 | 429 | `RATE_LIMITED` | `Retry-After` header set |
+| 500 | `INTERNAL` | Unexpected error. Generic message; details only in server logs, which never hold request bodies |
+
+Plain framework errors (unknown route, malformed JSON) use the same format with generic messages. Codes and statuses live in `@med/shared` (`ERROR_STATUS`).
 
 Every request from the app sends `X-App-Version` and `X-Platform`.
 
