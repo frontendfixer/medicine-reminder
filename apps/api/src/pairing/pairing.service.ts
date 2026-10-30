@@ -165,7 +165,7 @@ export class PairingService {
       // "Patient connected on …" for the caregiver's phone; the push sender picks queued rows up.
       const caregiverDevices = await tx.select({ id: devices.id }).from(devices).where(and(eq(devices.userId, owner.ownerUserId), isNull(devices.revokedAt)));
       if (caregiverDevices.length) {
-        await tx.insert(notificationLog).values(caregiverDevices.map((d) => ({ kind: 'pairing' as const, patientId: patient.id, deviceId: d.id })));
+        await tx.insert(notificationLog).values(caregiverDevices.map((d) => ({ kind: 'pairing' as const, patientId: patient.id, deviceId: d.id, data: { event: 'connected', device_label: body.device.label ?? null } })));
       }
       return { device_id: device!.id, device_token: token, patient: { id: patient.id, display_name: this.encryption.decrypt('patients.display_name', patient.displayName), timezone: patient.timezone } };
     });

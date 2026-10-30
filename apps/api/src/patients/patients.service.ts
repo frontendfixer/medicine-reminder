@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import { AuditService } from '../audit/audit.service.js';
+import { HealthService } from '../jobs/health.service.js';
 import { DosesService } from '../doses/doses.service.js';
 import { EntitlementsService } from '../billing/entitlements.service.js';
 import { ApiException } from '../common/api-exception.js';
@@ -22,6 +23,7 @@ export class PatientsService {
     private readonly encryption: FieldEncryption,
     private readonly audit: AuditService,
     private readonly doses: DosesService,
+    private readonly health: HealthService,
   ) {}
 
   async create(userId: string, body: CreatePatientBody) {
@@ -58,12 +60,14 @@ export class PatientsService {
   async list(userId: string, status?: PatientRow['status']) {
     const rows = await this.repo.listOwned(userId, status);
     const devicesByPatient = await this.repo.activeDevices(rows.map((r) => r.id));
-    return { items: rows.map((r) => patientView(r, devicesByPatient.get(r.id) ?? [], this.encryption)) };
+    const problems = await this.health.problemsFor([...devicesByPatient.values()].flat());
+    return { items: rows.map((r) => patientView(r, devicesByPatient.get(r.id) ?? [], this.encryption, problems)) };
   }
 
   async get(userId: string, patientId: string) {
     const row = await this.repo.findOwned(userId, patientId);
-    return patientView(row, (await this.repo.activeDevices([row.id])).get(row.id) ?? [], this.encryption);
+    const active = (await this.repo.activeDevices([row.id])).get(row.id) ?? [];
+    return patientView(row, active, this.encryption, await this.health.problemsFor(active));
   }
 
   async update(userId: string, patientId: string, body: UpdatePatientBody) {
@@ -141,7 +145,7 @@ export class PatientsService {
 
   private async viewIn(tx: Tx, row: PatientRow) {
     const rows = await tx.select().from(devices).where(and(eq(devices.patientId, row.id), isNull(devices.revokedAt)));
-    return patientView(row, rows, this.encryption);
+    return patientView(row, rows, this.encryption, await this.health.problemsFor(rows));
   }
 
   // One self profile per caregiver (D-092). The partial unique index is the backstop.

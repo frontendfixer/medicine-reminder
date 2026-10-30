@@ -21,7 +21,8 @@
     "typecheck": "tsc --noEmit",
     "test:int": "node --env-file=.env ./node_modules/vitest/vitest.mjs run --config vitest.config.int.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "node --env-file=.env ./node_modules/drizzle-kit/bin.cjs migrate"
+    "db:migrate": "node --env-file=.env ./node_modules/drizzle-kit/bin.cjs migrate",
+    "start:worker": "node --env-file=.env dist/worker.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1158.0",
@@ -32,7 +33,9 @@
     "@nestjs/jwt": "12.0.3",
     "@nestjs/platform-express": "^12.0.1",
     "@node-rs/argon2": "2.2.2",
+    "bullmq": "6.5.1",
     "drizzle-orm": "0.45.4",
+    "expo-server-sdk": "8.0.0",
     "ioredis": "6.0.0",
     "pg": "8.23.1",
     "reflect-metadata": "^0.2.2",

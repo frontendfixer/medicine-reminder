@@ -1,12 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { HealthService } from '../jobs/health.service.js';
 import { DosesService } from '../doses/doses.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { AppConfigService } from '../app-config/app-config.service.js';
 import type { Principal } from '../common/principal.js';
 import type { Db } from '../db/client.js';
 import { DB } from '../db/database.module.js';
-import { authSessions, devices, patients } from '../db/schema.js';
+import { authSessions, devices, notificationLog, patients } from '../db/schema.js';
 import { deviceSummary } from '../patients/patient-view.js';
 import { PatientsRepository, patientNotFound } from '../patients/patients.repository.js';
 import type { HeartbeatBody } from './devices.dto.js';
@@ -21,12 +22,14 @@ export class DevicesService {
     private readonly audit: AuditService,
     private readonly config: AppConfigService,
     private readonly doses: DosesService,
+    private readonly health: HealthService,
   ) {}
 
   async listForPatient(userId: string, patientId: string) {
     const patient = await this.patients.findOwned(userId, patientId);
     const rows = await this.db.select().from(devices).where(eq(devices.patientId, patient.id)).orderBy(asc(devices.createdAt));
-    return { items: rows.map(deviceSummary) };
+    const problems = await this.health.problemsFor(rows);
+    return { items: rows.map((d) => deviceSummary(d, problems.get(d.id))) };
   }
 
   async revoke(userId: string, deviceId: string) {
@@ -92,6 +95,9 @@ export class DevicesService {
       if (!p || p.tzMode !== 'follow_device' || p.timezone === tz || p.status !== 'active') return;
       await tx.update(patients).set({ timezone: tz, updatedAt: sql`now()` }).where(eq(patients.id, patientId));
       await this.doses.regeneratePatient(tx, patientId);
+      // "[Patient]'s reminders now follow [zone]" to the owner's phone (05, D-040).
+      const carers = await tx.select({ id: devices.id }).from(devices).where(and(eq(devices.userId, p.ownerUserId), isNull(devices.revokedAt)));
+      if (carers.length) await tx.insert(notificationLog).values(carers.map((c) => ({ kind: 'pairing' as const, patientId, deviceId: c.id, data: { event: 'timezone_changed', timezone: tz } })));
       await this.audit.record(tx, { actorType: 'system', patientId, action: 'patient.timezone_changed', targetType: 'patient', targetId: patientId, meta: { source: 'device' } });
     });
   }

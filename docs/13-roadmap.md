@@ -58,7 +58,7 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 - [x] Name/amount snapshots on doses; archive never deletes (2026-10-30)
 - [x] Photo (server side): presign `PUT` to private R2, server `HEAD` check, 1 MB cap, EXIF marker check (2026-10-30; the phone-side resize is app work, and the live R2 calls are untested without credentials)
 - [x] Signed read URLs for owner and paired devices only; access audited (2026-10-30)
-- [ ] Dose generator Job Scheduler (daily) + on-demand regeneration (edit, archive, tz change)
+- [x] Dose generator Job Scheduler (daily) + on-demand regeneration (edit, archive, tz change; synchronous in the same transaction) (2026-10-30)
 - [x] `alert_due_at` frozen at generation via delay resolution medicine → patient → default; recomputed for future pending doses on a delay change (2026-10-30)
 - [x] History and adherence endpoints (read-only for suspended), plus the audit-log read (2026-10-30)
 - [ ] Caregiver UI: medicine list/form, schedule editor, photo, history
@@ -79,14 +79,14 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 - [ ] Phone scheduler: budget allocator across profiles, reconcile by dose ID, `scheduled_through`
 - [ ] Notification types → channels / interruption levels; lock-screen detail full/generic
 - [ ] Mandatory guided permission onboarding; skipped permissions reported
-- [ ] Heartbeat on open, background task and sync; device fields updated
+- [x] Heartbeat endpoint and device fields updated (the phone-side triggers are app work) (2026-10-30)
 - [ ] Today screen: large buttons, photo, amount; works without notification permission
 - [ ] Lock-screen actions → SQLite outbox → batch `dose-responses` with `client_event_id`
 - [x] Server answer rules: earliest wins, snooze limits, corrections, `dose_cleared` data push queued (2026-10-30; delivery needs the push sender)
-- [ ] Sweeper Pass A: conditional backup push with outbox in `notification_log`
-- [ ] Expo push sender (chunks ≤ 100, backoff) + receipts job (`DeviceNotRegistered` handling)
+- [x] Sweeper Pass A: conditional backup push with outbox in `notification_log` (2026-10-30)
+- [x] Expo push sender (chunks ≤ 100, backoff) + receipts job (`DeviceNotRegistered` handling) (2026-10-30; live Expo calls untested without a token)
 - [ ] Refill: app open, `expo-background-task`, Android data push; visible push when window < 24 h
-- [ ] Timezone follow-device: regenerate + caregiver notice
+- [x] Timezone follow-device: regenerate (done) + caregiver notice (queued by the heartbeat) (2026-10-30)
 - [ ] Reliability checks on one real Android phone, app killed, build from EAS (formerly Phase 0, D-097):
   - Lock-screen Taken / Not taken / Snooze are saved with the app killed (`registerTaskAsync`, D-076), then sent on the next network
   - Alarm follow-ups every 5 min with `delivery: 'alarmClock'` in forced Doze (`adb shell dumpsys deviceidle force-idle`); also check whether Standard/Gentle need it for doses within 9 min (D-072)
@@ -107,17 +107,17 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 
 **Depends on:** [09](09-missed-dose-alerts.md), [07](07-subscriptions-and-billing.md), [06 transfer](06-pairing-and-devices.md#transfer). **Resolve first:** OI-01 (plans, prices, trial). **Implements:** D-082, D-087, D-092, D-093.
 
-- [ ] Sweeper Pass B: missed alerts at `alert_due_at`, mark `missed` + `alert_sent_at` in one transaction
-- [ ] Grouping within 15 min via `group_key` / collapse ID
-- [ ] Not taken immediate alert; corrections for late answers; self profile once-only rule
-- [ ] Device-health job: 6 h heartbeat, permissions, window < 24 h, invalid push token; 12 h throttle
+- [x] Sweeper Pass B: missed alerts at `alert_due_at`, mark `missed` + `alert_sent_at` in one transaction (2026-10-30)
+- [x] Grouping within 15 min via `group_key` / collapse ID (2026-10-30)
+- [x] Not taken immediate alert; corrections for late answers; self profile once-only rule (2026-10-30)
+- [x] Device-health job: 6 h heartbeat, permissions, window < 24 h, invalid push token; 12 h throttle (2026-10-30)
 - [ ] Transfer code + redeem (quota, `as_self`), everything moves intact, both sides audited
 - [ ] RevenueCat SDK in app; paywall; `subscription/refresh`
 - [ ] Webhook endpoint: auth header/HMAC, event-ID dedupe, async re-fetch via API v2
 - [ ] Daily reconciliation job
 - [ ] Store grace periods enabled in Play Console and App Store Connect
 - [ ] 1-day grace: warnings at expiry and −6 h; patient banner
-- [ ] Cutoff (sweeper Pass C): suspend patients + self profile, `cancel_all`, "Reminders paused"
+- [x] Cutoff (sweeper Pass C): suspend patients + self profile, `cancel_all`, "Reminders paused"; 6-hour warning (2026-10-30)
 - [ ] Suspended read-only enforcement; renewal restore + re-sync within a minute
 - [ ] Dashboards: sweeper lag, push receipts, device health ([14](14-release-and-ops.md#monitoring))
 

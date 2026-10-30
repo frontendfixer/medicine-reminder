@@ -6,3 +6,4 @@ packages:
 # esbuild's postinstall only swaps in the native binary as an optimisation; not needed.
 allowBuilds:
   esbuild: false
+  msgpackr-extract: false # optional native accelerator for BullMQ's msgpack; falls back to JavaScript

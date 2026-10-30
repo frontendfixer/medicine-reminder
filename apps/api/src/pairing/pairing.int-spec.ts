@@ -307,6 +307,9 @@ describe('heartbeat', () => {
       expect((await db.select().from(patients).where(eq(patients.id, p.id)))[0]!.timezone).toBe(expected);
     }
     expect((await db.select().from(auditLog).where(and(eq(auditLog.patientId, follow.id), eq(auditLog.action, 'patient.timezone_changed')))).length).toBe(1);
+    const notices = await db.select().from(notificationLog).where(and(eq(notificationLog.patientId, follow.id), eq(notificationLog.kind, 'pairing')));
+    expect(notices.map((n) => n.data)).toContainEqual({ event: 'timezone_changed', timezone: 'Europe/London' });
+    expect(JSON.stringify(await db.select().from(notificationLog).where(eq(notificationLog.patientId, fixed.id)))).not.toContain('timezone_changed');
   });
 });
 

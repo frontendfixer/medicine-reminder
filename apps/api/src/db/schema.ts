@@ -286,6 +286,8 @@ export const notificationLog = pgTable(
     deviceId: uuid('device_id').references(() => devices.id), // target
     doseInstanceId: uuid('dose_instance_id').references(() => doseInstances.id),
     groupKey: text('group_key'), // collapse id for 15-min grouping
+    // Small non-sensitive parameters for the message: event name, device label, counts. Never medicine names or notes.
+    data: jsonb(),
     status: text().notNull().default('queued'), // queued | sent | failed
     expoTicketId: text('expo_ticket_id'),
     ticketStatus: text('ticket_status'), // ok | error

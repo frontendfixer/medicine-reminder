@@ -84,7 +84,7 @@ export class AuthGuard implements CanActivate {
     if (first !== 'OK') return;
     await this.db.transaction(async (tx) => {
       const targets = await tx.select({ id: devices.id }).from(devices).where(and(eq(devices.userId, ownerUserId), isNull(devices.revokedAt)));
-      if (targets.length) await tx.insert(notificationLog).values(targets.map((t) => ({ kind: 'pairing' as const, patientId, deviceId: t.id })));
+      if (targets.length) await tx.insert(notificationLog).values(targets.map((t) => ({ kind: 'pairing' as const, patientId, deviceId: t.id, data: { event: 'token_rejected', device_id: deviceId } })));
       await this.audit.record(tx, { actorType: 'system', patientId, action: 'device.token_rejected', targetType: 'device', targetId: deviceId });
     });
   }

@@ -92,7 +92,7 @@ export class DoseResponsesService {
       }
       // The patient's other phones clear this dose (D-018, best effort: the next sync converges).
       const others = await tx.select({ id: devices.id }).from(devices).where(and(eq(devices.patientId, patient.id), isNull(devices.revokedAt), ne(devices.id, principal.id)));
-      if (others.length) await tx.insert(notificationLog).values(others.map((o) => ({ kind: 'sync' as const, patientId: patient.id, deviceId: o.id, doseInstanceId: dose.id })));
+      if (others.length) await tx.insert(notificationLog).values(others.map((o) => ({ kind: 'sync' as const, patientId: patient.id, deviceId: o.id, doseInstanceId: dose.id, data: { command: 'dose_cleared' } })));
       return { outcome: 'applied', dose: doseState(row!) };
     });
   }

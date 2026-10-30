@@ -126,6 +126,10 @@ All checked on 2026-10-28; see [references.md](references.md). Pin exact version
 | Errors | `@sentry/nestjs` 11.9.0 | |
 | Billing | RevenueCat REST API v2 | Secret key, server only |
 
+## Running the worker
+
+`pnpm --filter @med/api build`, then `pnpm --filter @med/api start:worker` (needs the same `.env`, including `REDIS_URL`; add `EXPO_ACCESS_TOKEN` for real pushes). The API process never runs jobs.
+
 ## Local development
 
 - Prerequisites: Node 26, pnpm 11, Docker.
