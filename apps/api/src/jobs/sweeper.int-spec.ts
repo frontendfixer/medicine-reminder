@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { devices, doseInstances, notificationLog, patients, subscriptions } from '../db/schema.js';
 import { PushModule } from '../push/push.module.js';
-import { startApp } from '../testing/harness.js';
+import { staggerMs, startApp } from '../testing/harness.js';
 import { JobsCoreModule } from './jobs.module.js';
 import { SweeperService } from './sweeper.service.js';
 
@@ -33,8 +33,10 @@ async function setup(over: object = {}) {
   await t.asDevice(phone.token, 'post', '/v1/devices/heartbeat').send(healthyBeat);
   const doses = await t.db.select().from(doseInstances).where(eq(doseInstances.patientId, p.id)).orderBy(asc(doseInstances.scheduledAt));
   // Make one dose due: it was scheduled `due` minutes ago with a deadline `deadline` minutes after that.
-  const place = (id: string, due: number, deadline = 30, status: 'pending' | 'snoozed' | 'taken' = 'pending') =>
-    t.db.update(doseInstances).set({ scheduledAt: ago(due), alertDueAt: new Date(ago(due).getTime() + deadline * 60_000), status, pushSentAt: null, alertSentAt: null }).where(eq(doseInstances.id, id));
+  const place = (id: string, due: number, deadline = 30, status: 'pending' | 'snoozed' | 'taken' = 'pending') => {
+    const at = new Date(ago(due).getTime() - staggerMs());
+    return t.db.update(doseInstances).set({ scheduledAt: at, alertDueAt: new Date(at.getTime() + deadline * 60_000), status, pushSentAt: null, alertSentAt: null }).where(eq(doseInstances.id, id));
+  };
   const rows = (kind: string) => t.db.select().from(notificationLog).where(and(eq(notificationLog.patientId, p.id), eq(notificationLog.kind, kind as 'backup')));
   const dose = async (id: string) => (await t.db.select().from(doseInstances).where(eq(doseInstances.id, id)))[0]!;
   const carerDevice = async () => (await t.db.select().from(devices).where(eq(devices.userId, me.id)))[0]!;

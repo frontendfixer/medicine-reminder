@@ -9,6 +9,12 @@ import type { Db } from '../db/client.js';
 import { DB } from '../db/database.module.js';
 import { resetTestDb, testDatabaseUrl } from '../db/test-db.js';
 
+// Doses of one medicine must have different scheduled_at (unique constraint). Tests that move several doses "to N minutes ago"
+// would otherwise get the identical millisecond on a fast machine (CI did), so each placement is offset by its own whole
+// second. It wraps at 50 s, so a "deadline in 10 minutes" case stays about 10 minutes.
+let stagger = 0;
+export const staggerMs = (): number => (stagger++ % 50) * 1000;
+
 export type Caregiver = { id: string; token: string; email: string };
 type Method = 'get' | 'post' | 'patch' | 'delete';
 

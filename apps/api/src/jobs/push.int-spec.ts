@@ -4,7 +4,7 @@ import { FakePushTransport } from '../push/fake-push-transport.js';
 import { OutboxSender } from '../push/outbox-sender.js';
 import { PushTransport } from '../push/push-transport.js';
 import { PushModule } from '../push/push.module.js';
-import { startApp } from '../testing/harness.js';
+import { staggerMs, startApp } from '../testing/harness.js';
 import { DoseGeneratorService } from './dose-generator.service.js';
 import { HealthService } from './health.service.js';
 import { JobsCoreModule } from './jobs.module.js';
@@ -49,7 +49,10 @@ async function setup(medType = 'alarm') {
   await t.call(me, 'post', '/v1/devices/heartbeat', { ...beat, push_token: `ExponentPushToken[carer-${randomId()}]` }).catch(() => null);
   await t.http().post('/v1/devices/heartbeat').set('Authorization', `Bearer ${me.token}`).send({ ...beat, push_token: `ExponentPushToken[carer-${randomId()}]` });
   const doses = await t.db.select().from(doseInstances).where(eq(doseInstances.patientId, p.id)).orderBy(asc(doseInstances.scheduledAt));
-  const place = (id: string, due: number, deadline = 30) => t.db.update(doseInstances).set({ scheduledAt: ago(due), alertDueAt: new Date(ago(due).getTime() + deadline * 60_000), pushSentAt: null, alertSentAt: null }).where(eq(doseInstances.id, id));
+  const place = (id: string, due: number, deadline = 30) => {
+    const at = new Date(ago(due).getTime() - staggerMs());
+    return t.db.update(doseInstances).set({ scheduledAt: at, alertDueAt: new Date(at.getTime() + deadline * 60_000), pushSentAt: null, alertSentAt: null }).where(eq(doseInstances.id, id));
+  };
   const log = () => t.db.select().from(notificationLog).where(eq(notificationLog.patientId, p.id)).orderBy(asc(notificationLog.createdAt));
   const phoneRow = async () => (await t.db.select().from(devices).where(eq(devices.id, phone.deviceId)))[0]!;
   await t.db.delete(notificationLog).where(eq(notificationLog.patientId, p.id)); // setup's own "patient connected" noise

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, asc, eq } from 'drizzle-orm';
 import { auditLog, devices, doseInstances, medicines, notificationLog, patients, subscriptions } from '../db/schema.js';
-import { startApp } from '../testing/harness.js';
+import { staggerMs, startApp } from '../testing/harness.js';
 
 let t: Awaited<ReturnType<typeof startApp>>;
 beforeAll(async () => {
@@ -24,8 +24,10 @@ async function setup(type: 'managed' | 'self' = 'managed') {
   const dose = async (id: string) => (await t.db.select().from(doseInstances).where(eq(doseInstances.id, id)))[0]!;
   const queued = (kind: string, doseId: string) => t.db.select().from(notificationLog).where(and(eq(notificationLog.kind, kind as 'correction'), eq(notificationLog.doseInstanceId, doseId)));
   // Put one dose in a known time position so the rules can be exercised without waiting.
-  const place = (id: string, scheduledMinutes: number, delayMin = 30, status: 'pending' | 'missed' | 'taken' | 'not_taken' | 'snoozed' = 'pending') =>
-    t.db.update(doseInstances).set({ scheduledAt: minutes(scheduledMinutes), alertDueAt: minutes(scheduledMinutes + delayMin), status, alertSentAt: status === 'missed' ? new Date() : null }).where(eq(doseInstances.id, id));
+  const place = (id: string, scheduledMinutes: number, delayMin = 30, status: 'pending' | 'missed' | 'taken' | 'not_taken' | 'snoozed' = 'pending') => {
+    const at = new Date(minutes(scheduledMinutes).getTime() - staggerMs());
+    return t.db.update(doseInstances).set({ scheduledAt: at, alertDueAt: new Date(at.getTime() + delayMin * 60_000), status, alertSentAt: status === 'missed' ? new Date() : null }).where(eq(doseInstances.id, id));
+  };
   return { me, p, med, phone, doses, answer, event, dose, queued, place };
 }
 
