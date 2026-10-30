@@ -7,10 +7,8 @@
 | Pure logic (shared) | Vitest (NestJS 12 packages are ESM-only; Jest needs Node 24.9+, [R-13](references.md)) | Dose expansion, delay resolution, window/budget allocator, code alphabet/normalisation, answer merge rules |
 | API unit | Vitest + Nest testing module | Services, guards (JWT vs device), idempotency interceptor, error mapping |
 | API integration | Vitest + real PostgreSQL 18 + Redis in containers | Transactions, `FOR UPDATE SKIP LOCKED`, partial indexes used (`EXPLAIN`), quota locking, pairing redeem, webhook dedupe |
-| Contract | OpenAPI generated from Nest; app client generated from it; contract tests in CI | Request/response shapes match [04](04-api.md) |
 | Mobile unit | Jest via `jest-expo` (check the current Expo testing docs before setup) | Scheduler reconciliation, outbox, mode switch, i18n keys present |
-| Mobile E2E | Maestro or Detox (choose in Phase 1 after checking current docs) | Pairing, Today screen answers, permission onboarding |
-| Device (manual + scripted) | Physical device matrix below | Alarms with app killed, locked, overnight, battery saver |
+| Device (manual) | One real Android phone, checklist below | Alarms with app killed, locked, overnight |
 
 ### Dose generation tests
 (Phase 2 gate: "generated doses match the schedule across timezones and DST")
@@ -30,6 +28,7 @@ Seed two caregivers (A, B), each with patients, medicines, doses, devices and ph
 - Conditional push truth table: (`scheduled_through`, `last_seen_at`, permissions) → push or not ([D-036](01-decisions.md#d-036-conditional-push-backup)).
 - Missed alert at `alert_due_at`; snooze never moves it; grouping within 15 min replaces rather than adds; Not taken immediate; correction after missed.
 - Device-health throttle: at most one per 12 h per device.
+- Redis wiped and restored empty: Job Schedulers re-created on worker boot, sweeper resumes, no lost alert (D-033, D-071).
 - Delay change recomputes `alert_due_at` only for pending/snoozed doses scheduled after the change (D-086).
 - Answer merge: clamped `responded_at`, tie by `received_at`; snooze refused when under 10 min remain (D-085).
 - Budget allocator: profiles share 60 slots; over budget → follow-ups only for the next 24 h (D-078).
@@ -38,39 +37,17 @@ Seed two caregivers (A, B), each with patients, medicines, doses, devices and ph
 - Auth: login failure is indistinguishable (status, body, timing) for unknown email vs wrong password; throttling per account and per IP; 7- and 129-character passwords rejected, 8 and 128 accepted (D-096); password never appears in logs or Sentry events (D-095).
 - Billing: grace warnings at expiry and at −6 h; cutoff suspends all patients and the self profile; renewal restores and regenerates.
 
-## Device matrix
+## Device checks
 
-([D-068](01-decisions.md#d-068-phases-and-gates)) Four physical phones:
+([D-097](01-decisions.md#d-097-no-phase-0-spike-fewer-tests-reliability-checked-in-phase-3)) The four-phone matrix and the chaos table were dropped. Cases that mattered are unit or integration tests above.
 
-| Phone | Why |
-| --- | --- |
-| Samsung (One UI) | Largest Android share; aggressive "sleeping apps" |
-| Xiaomi (HyperOS/MIUI) **or** Oppo (ColorOS) | Strict OEM background killers |
-| Stock Android (Pixel) | Reference behaviour, latest Android |
-| iPhone | iOS limits, time-sensitive, actions while terminated |
+**Phase 3, one real Android phone** (checklist in [13](13-roadmap.md#phase-3--reminders)):
+1. Pair, finish onboarding, schedule test doses: Standard, Alarm (30-min delay), Gentle; two doses 1 minute apart.
+2. Kill the app (swipe away), lock, leave. Once overnight, unplugged.
+3. Verify: each notification fired within 1 minute; Alarm follow-ups every 5 minutes; lock-screen Taken / Not taken / Snooze recorded and synced on next network; missed alert reached the caregiver phone at the deadline.
+4. Repeat once offline (airplane mode while answering, network back later).
 
-Each run in three states: **locked**, **idle overnight** (≥ 8 h untouched, unplugged, so Doze engages), and **battery saver on**. Record OS version, app build and results in the roadmap gate entry.
-
-### Device test script (per phone, per state)
-1. Pair, finish onboarding, schedule test doses: Standard, Alarm (30-min delay), Gentle; two doses 1 minute apart; one at 03:00.
-2. Kill the app (swipe away), lock, leave.
-3. Verify: each notification fired within 1 minute of time; Alarm follow-ups every 5 minutes; lock-screen Taken/Not taken/Snooze recorded and synced on next network; missed alert to the caregiver phone at the deadline.
-4. Repeat offline (airplane mode during answers, network back later).
-
-## Chaos cases
-
-| Case | Expectation |
-| --- | --- |
-| Kill Redis for 10 min, then restore empty | No lost alerts; sweeper resumes; alerts late by ≤ outage; Job Schedulers re-created |
-| Kill all workers mid-sweep | Rows processed once after restart; `queued` outbox rows sent |
-| Postgres failover | API errors briefly; no duplicate alerts after recovery |
-| Expo Push returns 5xx/429 for 15 min | Outbox retries with backoff; nothing dropped |
-| Duplicate and out-of-order RevenueCat webhooks | State converges to the RevenueCat customer state |
-| Patient phone offline 3 days, answers queued | All answers synced within 5 min of network; corrections sent for missed ones |
-| Revoke a device while it has alarms scheduled | Alarms keep firing; recovery screen on next call; caregiver alerted |
-| Clock set 2 h ahead on patient phone | Server times correct; skew warning; answer clamping per D-085 |
-| Exact-alarm permission revoked while window scheduled | Device alert to caregiver; reschedule on next run; backup pushes |
-| Subscription expires, phone offline at cutoff | Phone shows paused on next sync; no alarms past cutoff if it synced during grace (D-087) |
+**Phase 5:** repeat on the beta group's own phones during the one-week beta; add Samsung / Xiaomi / Oppo only if someone in the group has one. **iPhone:** only when one exists (OI-29).
 
 ## SLOs
 

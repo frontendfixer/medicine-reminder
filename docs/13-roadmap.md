@@ -1,38 +1,14 @@
 # Roadmap
 
-Phases 0–5 ([D-068](01-decisions.md#d-068-phases-and-gates)). A phase is done only when its **exit gate** passes; record the result (date, devices, build) under the gate. Resolve the listed conflicts before starting the phase.
+Phases 1–5 ([D-068](01-decisions.md#d-068-phases-and-gates), Phase 0 dropped by D-097). A phase is done only when its **exit gate** passes; record the result (date, devices, build) under the gate. Resolve the listed conflicts before starting the phase.
 
 Every phase starts by re-reading the official docs for the libraries it touches and updating [references.md](references.md) ([CLAUDE.md](../CLAUDE.md)).
 
 ---
 
-## Phase 0 — Reminder spike (1 week)
+## Phase 0 — dropped ([D-097](01-decisions.md#d-097-no-phase-0-spike-fewer-tests-reliability-checked-in-phase-3))
 
-**Goal:** Prove that local reminders and lock-screen answers work on real phones with the app killed, before building anything else. Throwaway Expo app.
-
-**Depends on:** [05](05-reminder-engine.md#device-scheduling), [08](08-notifications-and-platform.md), [12 device matrix](12-testing-and-slos.md#device-matrix). **Verifies:** D-072, D-073, D-074, D-075, D-076, D-078 (the spike supplies the evidence; if a result contradicts a decision, log a new conflict).
-
-- [x] Re-check Expo SDK, expo-notifications, expo-background-task docs; note any Android 16 / iOS 26 notification changes in references (2026-10-28: R-02, R-03, R-49–R-55; no notification/alarm changes in Android 16/17, none listed by Apple for iOS 26)
-- [ ] Create an Expo SDK 58 development build (EAS Build) for Android and iOS
-- [ ] Create versioned channels `dose_standard_v1`, `dose_alarm_v1`, `dose_gentle_v1` before the permission prompt
-- [ ] Register category `dose_v1` with Taken / Not taken / Snooze 10 min actions
-- [ ] Schedule date-trigger notifications with dose IDs as identifiers; re-sync replaces without duplicates
-- [ ] Alarm type: follow-ups every 5 min with `delivery: 'alarmClock'`; measure cadence in Doze (D-072)
-- [ ] Exact-alarm permission flow; verify the merged manifest has no `USE_EXACT_ALARM` (D-073)
-- [ ] Battery-optimisation settings flow + read state (native check if needed) (D-074)
-- [ ] iOS time-sensitive capability; measure behaviour with Focus on
-- [ ] Action handling with app terminated: Android via `registerTaskAsync`; iOS test, and if it fails, build the native-module fallback (D-076)
-- [ ] Persist answers to SQLite from the action handler; flush to a stub endpoint
-- [ ] Fill iOS to 64 pending requests and confirm the limit and drop behaviour on the current iOS (D-078)
-- [ ] iOS notification attachment with a cached photo
-- [ ] Background task registration and observed run frequency per phone
-- [ ] Data push (Expo, `priority: high`) to a killed app on each Android phone; record delivery (D-075)
-- [ ] Write findings into the docs; log a new conflict if any result contradicts D-072–D-078
-
-**Progress (2026-10-28):** spike code in [`spike/`](../spike/README.md) covers every item above. Items are ticked only after they pass on the phones. Found so far: the battery state is readable via `expo-battery` (no native module); the iOS `time_sensitive` state isn't exposed by expo-notifications and needs a native module ([08](08-notifications-and-platform.md#ios-interruption-levels)).
-
-**Exit gate:** alarms and lock-screen answers work with the app killed, overnight, on all 4 test phones.
-> Gate result: _not run_
+The reminder spike is removed; work starts at Phase 1. Its reliability checks moved to Phase 3, and its docs re-check is done (2026-10-28: R-02, R-03, R-49–R-55; no notification/alarm changes in Android 16/17, none listed by Apple for iOS 26).
 
 ---
 
@@ -111,9 +87,16 @@ Every phase starts by re-reading the official docs for the libraries it touches 
 - [ ] Expo push sender (chunks ≤ 100, backoff) + receipts job (`DeviceNotRegistered` handling)
 - [ ] Refill: app open, `expo-background-task`, Android data push; visible push when window < 24 h
 - [ ] Timezone follow-device: regenerate + caregiver notice
-- [ ] Device tests on the matrix, online and offline
+- [ ] Reliability checks on one real Android phone, app killed, build from EAS (formerly Phase 0, D-097):
+  - Lock-screen Taken / Not taken / Snooze are saved with the app killed (`registerTaskAsync`, D-076), then sent on the next network
+  - Alarm follow-ups every 5 min with `delivery: 'alarmClock'` in forced Doze (`adb shell dumpsys deviceidle force-idle`); also check whether Standard/Gentle need it for doses within 9 min (D-072)
+  - Exact-alarm grant and revoke: status flips and the window re-schedules (D-073); CI check that the merged manifest has no `USE_EXACT_ALARM`
+  - Battery-optimisation settings screen opens and the state is read via `expo-battery` (D-074)
+  - Android data push to a killed app: delivered count recorded (D-075, best effort)
+  - One overnight run: unplugged, locked, app killed; all doses fire within 1 min
+- [ ] If an iPhone becomes available: iOS lock-screen answers with the app killed (D-076), 64-request limit (D-078), time-sensitive with Focus, photo attachment (D-079). Otherwise OI-29 stays open
 
-**Exit gate:** test doses fire on locked, idle Android and iPhone, online and offline.
+**Exit gate:** test doses fire on a locked, idle Android phone with the app killed, online and offline, including one overnight run. (iPhone half pending OI-29.)
 > Gate result: _not run_
 
 ---
@@ -150,8 +133,7 @@ Every phase starts by re-reading the official docs for the libraries it touches 
 **Depends on:** [10](10-security-privacy.md), [11](11-failure-modes.md), [12](12-testing-and-slos.md), [14](14-release-and-ops.md), [08 store checklist](08-notifications-and-platform.md#store-policy-checklist). **Resolve first:** C-10 (legal review), OI-18 (retention), OI-19 (grievance contact). **Implements:** D-073, D-074, D-077, D-081, D-088, D-090.
 
 - [ ] Re-check every reference older than 3 months; update versions
-- [ ] OEM battery tests (Samsung, Xiaomi/Oppo) + OEM guidance screens
-- [ ] Chaos cases from [12](12-testing-and-slos.md#chaos-cases)
+- [ ] OEM battery checks on the beta group's own phones (Samsung, Xiaomi/Oppo if present) + OEM guidance screens
 - [ ] Security review: auth, pairing abuse, isolation, scrubbing, secrets, dependency audit
 - [ ] PITR restore drill passed ([14](14-release-and-ops.md#restore-drill))
 - [ ] DPDP: consent flows, notice, export, in-app deletion, grievance contact, retention rules; legal review sign-off (C-10)

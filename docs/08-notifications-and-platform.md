@@ -35,7 +35,7 @@ Findings ([R-02](references.md), [R-27](references.md), [R-28](references.md), [
 | Without it, notifications arrive at an approximate time; `delivery: 'alarmClock'` falls back to `'bestEffort'` | Report `exact_alarm = false` in heartbeat. It is a required permission, so conditional push applies (D-036) and the caregiver is told (D-042, D-047) |
 | Revoking it **cancels all future exact alarms** and stops the app | On next app open or background run, re-schedule the full window |
 | `USE_EXACT_ALARM` is Play-restricted to alarm/timer and calendar apps | Don't declare it. CI checks the merged `AndroidManifest.xml` for it |
-| Doze: `setExactAndAllowWhileIdle` max once per 9 min per app; `setAlarmClock` exits Doze | Alarm-type doses and follow-ups use `delivery: 'alarmClock'` ([D-072](01-decisions.md#d-072-alarm-type-uses-alarm-clock-delivery)). Phase 0 verifies whether Standard/Gentle also need it when several doses fall within 9 minutes |
+| Doze: `setExactAndAllowWhileIdle` max once per 9 min per app; `setAlarmClock` exits Doze | Alarm-type doses and follow-ups use `delivery: 'alarmClock'` ([D-072](01-decisions.md#d-072-alarm-type-uses-alarm-clock-delivery)). Phase 3 verifies whether Standard/Gentle also need it when several doses fall within 9 minutes |
 
 `USE_FULL_SCREEN_INTENT` is auto-granted only to alarm and calling apps on Play ([R-33](references.md)). Full-screen intents aren't part of the decisions and aren't used.
 
@@ -45,7 +45,7 @@ Findings ([R-02](references.md), [R-27](references.md), [R-28](references.md), [
 - Being exempt from battery optimisation lets the app use the network and hold wake locks in Doze, which helps refill and heartbeat. Alarms are still governed by the alarm APIs above.
 - **Play policy:** the direct request dialog (`ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` + `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` permission) is only for acceptable use cases, and medication reminders aren't listed. We don't declare that permission; guided setup opens the settings list (`ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS`) with guidance ([D-074](01-decisions.md#d-074-battery-optimisation-via-the-settings-list)).
 - Check state with `isBatteryOptimizationEnabledAsync()` from `expo-battery` (Android 6+, no extra permission); `battery_unrestricted = !enabled` ([R-49](references.md)). No native module needed. Open the list with `expo-intent-launcher` `ActivityAction.IGNORE_BATTERY_OPTIMIZATION_SETTINGS` ([R-50](references.md)).
-- OEM layers (Samsung, Xiaomi/MIUI/HyperOS, Oppo/ColorOS) add their own background killers. Phase 5 adds OEM-specific guidance screens, tested on the device matrix ([12](12-testing-and-slos.md#device-matrix)).
+- OEM layers (Samsung, Xiaomi/MIUI/HyperOS, Oppo/ColorOS) add their own background killers. Phase 5 adds OEM-specific guidance screens, checked on the beta group's phones ([12](12-testing-and-slos.md#device-checks)).
 
 ## iOS interruption levels
 
@@ -85,7 +85,7 @@ Resolution: `patients.lockscreen_detail` (per-patient override, D-082) → `care
 - Every local and backup notification uses this category with `data: { dose_id, patient_id }`.
 - **Handling:**
   - Android: `registerTaskAsync` runs the JS task for action taps even when the app is terminated ([R-02](references.md)). The task writes the outbox row and cancels follow-ups.
-  - iOS: the system launches the app in the background and calls `didReceive` ([R-40](references.md)), but expo-notifications documents its background task for action taps as Android-only. **Phase 0 must prove this works on iOS** or pick a fallback ([D-076](01-decisions.md#d-076-ios-lock-screen-answers-proven-in-phase-0)).
+  - iOS: the system launches the app in the background and calls `didReceive` ([R-40](references.md)), but expo-notifications documents its background task for action taps as Android-only. **Phase 3 must prove this works on iOS (needs an iPhone, OI-29)** or pick a fallback ([D-076](01-decisions.md#d-076-ios-lock-screen-answers-proven-in-phase-0)).
 - The Today screen offers the same three answers with large buttons, photo and amount. It works with notifications disabled ([D-077](01-decisions.md#d-077-generic-text-in-remote-pushes-app-works-without-notifications)).
 
 ## Permission onboarding

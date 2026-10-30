@@ -2,7 +2,7 @@
 
 The source of truth for product and engineering behaviour. Every other doc must agree with this file. To change a decision, add a new entry that supersedes the old one; never edit history silently.
 
-- **Date:** D-001 to D-070 were agreed on 2026-10-25, before documentation started. D-071 to D-094 resolve the conflicts and open items found while documenting, accepted 2026-10-28 ([Resolutions](#resolutions-2026-10-28)). D-095 onwards are later owner changes ([Owner changes](#owner-changes)).
+- **Date:** D-097 is an owner change of 2026-10-30. D-001 to D-070 were agreed on 2026-10-25, before documentation started. D-071 to D-094 resolve the conflicts and open items found while documenting, accepted 2026-10-28 ([Resolutions](#resolutions-2026-10-28)). D-095 onwards are later owner changes ([Owner changes](#owner-changes)).
 - **Status values:** `Accepted`, `Recommended` (agreed in principle, optional for v1), `Deferred (v1.1)`, `Open`, `Superseded by D-xxx`. "Amended by D-xxx" means a later entry adds rules or changes wording; read both.
 - An entry still marked **⚠ C-xx** has an unresolved conflict with current official documentation ([Conflicts found while documenting](#conflicts-found-while-documenting)). The owner must resolve it before the phase that implements it.
 
@@ -328,7 +328,7 @@ The source of truth for product and engineering behaviour. Every other doc must 
 
 ### D-068 Phases and gates
 - **Decision:** Phase 0 reminder spike (1 week) → 1 Foundations → 2 Medicines and doses → 3 Reminders → 4 Alerts and billing → 5 Hardening and launch, each with an exit gate, as in [13-roadmap](13-roadmap.md). Test device matrix: one Samsung, one Xiaomi or Oppo, one stock Android, one iPhone — each locked, idle overnight and with battery saver on.
-- **Status:** Accepted
+- **Status:** Accepted · amended by D-097 (no Phase 0; simpler device testing)
 
 ### D-069 Proposed SLOs
 - **Decision:** Missed-dose alert within 2 min of due time for 99.9% of doses · sweeper lag p99 under 60 s · 98% of active patient devices healthy (permissions on, heartbeat under 6 h, window ≥ 2 days) · 99% of offline answers reach the server within 5 min of the network returning · crash-free sessions 99.5%.
@@ -352,7 +352,7 @@ The owner accepted the recommended fixes for the conflicts and open items found 
 ### D-072 Alarm type uses alarm-clock delivery
 - **Decision:** Alarm-type doses and their 5-minute follow-ups are scheduled with `delivery: 'alarmClock'` (Android `setAlarmClock`). Phase 0 checks whether Standard and Gentle also need it when several doses fall within 9 minutes.
 - **Reason:** In Doze, `setExactAndAllowWhileIdle` fires at most once per 9 minutes per app; `setAlarmClock` still fires ([R-29], [R-02]).
-- **Resolves:** C-02 · **Status:** Accepted
+- **Resolves:** C-02 · **Status:** Accepted · amended by D-097 (checked in Phase 3, not Phase 0)
 
 ### D-073 SCHEDULE_EXACT_ALARM only
 - **Decision:** Android uses `SCHEDULE_EXACT_ALARM` only. `USE_EXACT_ALARM` must never appear in the merged manifest (CI check). The "Play exact-alarm declaration" in D-067 becomes an exact-alarm justification in the Play listing and review notes. The full window is re-scheduled on the next app open or background run after the permission changes. "Exact alarm off" is a required permission for conditional push and device problem alerts.
@@ -372,7 +372,7 @@ The owner accepted the recommended fixes for the conflicts and open items found 
 ### D-076 iOS lock-screen answers proven in Phase 0
 - **Decision:** Phase 0 must prove that Taken / Not taken tapped on a locked iPhone, with the app swiped away, is persisted. If expo-notifications can't do it, the fallback is a small native module (Expo Modules API) that writes the answer to the local queue natively and sends it on the next run. Opening the app on tap is the last resort.
 - **Reason:** iOS launches the app in the background for action taps ([R-40]), but expo-notifications documents its background task for action taps as Android-only ([R-02]).
-- **Resolves:** C-06 · **Status:** Accepted
+- **Resolves:** C-06 · **Status:** Accepted · amended by D-097 (checked in Phase 3, needs an iPhone, OI-29)
 
 ### D-077 Generic text in remote pushes; app works without notifications
 - **Decision:**
@@ -523,6 +523,21 @@ The owner accepted the recommended fixes for the conflicts and open items found 
   - a forgotten password permanently locks the caregiver out of that account (alarms and alerts already on their signed-in phone keep working until they're signed out).
 - **Resolves:** OI-28 · **Status:** Accepted
 
+### D-097 No Phase 0 spike; fewer tests; reliability checked in Phase 3
+- **Date:** 2026-10-30
+- **Decision:**
+  - **No Phase 0.** The reminder spike and its app (`spike/`) are dropped. Work starts at Phase 1. This amends D-068: phases are 1–5.
+  - **Reliability is checked on the real app in Phase 3** instead, on whatever Android phone(s) the owner has, with the app killed: lock-screen answers, Alarm follow-ups in Doze, exact-alarm revoke and grant, battery-settings flow. The checks are listed under Phase 3 in [13-roadmap](13-roadmap.md). The `USE_EXACT_ALARM` manifest check stays a CI check (D-073).
+  - **Device testing:** the 4-phone × 3-state matrix is dropped. Phase 3 needs one real Android phone, locked and killed, once overnight. Phase 5 adds OEM checks on the beta group's own phones.
+  - **Test layers dropped:** mobile E2E (Maestro/Detox), the OpenAPI contract-test layer, and the chaos-case table. Their useful cases are already unit or integration tests (sweeper restart, webhook dedupe, outbox retry, answer clamping, grace cutoff); Redis loss is added as one integration test.
+  - **Test layers kept:** everything CLAUDE.md names as non-negotiable (isolation matrix, `Idempotency-Key`, no PII in Sentry events) plus the dose-generation property tests and the reminder-engine tests in [12](12-testing-and-slos.md).
+- **Reason:** Owner choice: spike and device-matrix steps were blocking real development. Each check now happens inside the phase that builds the feature, so it costs no separate step.
+- **Accepted risks:**
+  - A Doze, OEM or Android killed-app problem is found later (Phase 3), after more code exists. The scheduler code is kept thin and behind one module so it can change.
+  - D-072's open question (do Standard and Gentle also need `alarmClock`?) is answered in Phase 3.
+  - The iOS items stay unverified (OI-29).
+- **Status:** Accepted
+
 ## Conflicts found while documenting
 
 Found on 2026-10-28 by checking current official docs. Kept as history; each points to the decision that resolved it.
@@ -550,7 +565,7 @@ Found on 2026-10-28 by checking current official docs. Kept as history; each poi
 - **Finding:** High-priority FCM messages that don't produce user-visible notifications may be downgraded (judged per app instance over 7 days). Firebase recommends `AndroidConfigV2` `BackgroundSync` for non-urgent updates ([R-32]).
 
 ### C-06 iOS lock-screen answers while the app is terminated — resolved (D-076)
-- **Affects:** D-029, Phase 0 gate.
+- **Affects:** D-029, Phase 3 gate (was Phase 0, D-097).
 - **Finding:** iOS launches the app in the background for action taps ([R-40]). expo-notifications documents its background task for action taps "only on Android" ([R-02]).
 
 ### C-07 Apple 4.5.4 — push must not be required and must not carry sensitive data — resolved (D-077)
@@ -590,6 +605,7 @@ Found on 2026-10-28 by checking current official docs. Kept as history; each poi
 | --- | --- | --- |
 | OI-01 | Plan names, prices, and whether new caregivers get a free trial | Undecided. Only Starter = 3 is fixed. Needed before Phase 4 |
 | OI-18 | Retention of archived and suspended patients, medicines and history | Depends on C-10 legal review |
+| OI-29 | No iPhone available (owner, 2026-10-30) | Phase 0 no longer exists (D-097) and the iOS checks were never run, so D-027 (time-sensitive, Focus), D-076 (iOS lock-screen answers with the app killed), D-078 (64-request limit on current iOS) and D-079 (photo attachment) are unverified. Must be run on a real iPhone, or iOS dropped from v1 by a new decision, before Phase 3 ends and before any iOS release. The iPhone half of the Phase 3 gate can't pass until then |
 | OI-19 | Named grievance contact and Data Protection contact | Needs a person and an address before store submission (Phase 5) |
 
 ### Resolved open items
