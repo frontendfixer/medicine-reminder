@@ -14,8 +14,8 @@
 | [09-missed-dose-alerts.md](09-missed-dose-alerts.md) | Delay resolution, alert rules, grouping, corrections, device problem alerts |
 | [10-security-privacy.md](10-security-privacy.md) | Security controls and DPDP mapping |
 | [11-failure-modes.md](11-failure-modes.md) | Risk → mitigation table |
-| [12-testing-and-slos.md](12-testing-and-slos.md) | Test strategy, device matrix, chaos cases, SLOs and measurement |
-| [13-roadmap.md](13-roadmap.md) | Phases 0–5 with checklists and gates; v1.1 |
+| [12-testing-and-slos.md](12-testing-and-slos.md) | Test strategy, device checks, SLOs and measurement |
+| [13-roadmap.md](13-roadmap.md) | Phases 1–5 with checklists and gates; v1.1 |
 | [14-release-and-ops.md](14-release-and-ops.md) | EAS channels, rollout, minimum version, monitoring, incidents, restore drill |
 | [references.md](references.md) | Every source consulted, with version and date checked |
 
@@ -25,7 +25,7 @@ Repo-root [CLAUDE.md](../CLAUDE.md) holds the standing rules for agent sessions.
 
 1. **Decisions first.** A behaviour change starts as a new entry in `01-decisions.md`, or supersedes an old one. Then update the topic docs.
 2. **Same change.** Code that changes schema, API, jobs, notifications or ops updates the matching doc in the same commit or PR.
-3. **Sources.** Every official page you read goes in `references.md` with the date checked. Re-check sources older than 3 months before relying on them, and always before Phase 0 and Phase 5.
+3. **Sources.** Every official page you read goes in `references.md` with the date checked. Re-check sources older than 3 months before relying on them, and always before Phase 1 and Phase 5.
 4. **Conflicts.** When current docs contradict a decision, add a `C-xx` entry and ask the owner. Do not edit the decision yourself.
 5. **One home per fact.** Each fact lives in one doc; others link to it. Numbers come from `01-decisions.md`.
 6. **Roadmap.** Tick `- [x]` items in `13-roadmap.md` as they land, and record gate results with a date.

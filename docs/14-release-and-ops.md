@@ -7,7 +7,7 @@ Decisions: [D-062](01-decisions.md#d-062-releases), [D-063](01-decisions.md#d-06
 | Env | API | DB | EAS channel | Purpose |
 | --- | --- | --- | --- | --- |
 | `development` | local / dev | dev DB | `development` | Dev builds with `expo-dev-client` |
-| `preview` | staging | staging DB (synthetic data only) | `preview` | Internal testers, device matrix |
+| `preview` | staging | staging DB (synthetic data only) | `preview` | Internal testers, device checks |
 | `production` | prod | prod DB | `production` | Store builds |
 
 RevenueCat sandbox events are processed only outside production ([07](07-subscriptions-and-billing.md#revenuecat-webhooks)).

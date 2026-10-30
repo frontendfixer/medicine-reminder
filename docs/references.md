@@ -96,5 +96,5 @@ All entries were checked on **2026-10-28** unless stated otherwise.
 - expo-image-manipulator EXIF behaviour (Phase 2).
 - EAS Build profiles and store staged-rollout docs for Play Console and App Store phased release (Phase 5).
 - Play Data safety form and App Store privacy details (Phase 5).
-- iOS 26 notification behaviour: Apple lists no User Notifications updates since June 2024 (R-55). Confirm on device in Phase 0 (64-pending limit, time-sensitive with Focus).
+- iOS 26 notification behaviour: Apple lists no User Notifications updates since June 2024 (R-55). Confirm on an iPhone when one is available (OI-29): 64-pending limit, time-sensitive with Focus.
 - Apple reference page for the Time Sensitive Notifications entitlement (R-55: 404 on 2026-10-28).

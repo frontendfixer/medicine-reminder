@@ -85,7 +85,7 @@ flowchart LR
 
 ## Stack and checked versions
 
-All checked on 2026-10-28; see [references.md](references.md). Pin exact versions in lockfiles. Re-check before Phase 0 and Phase 5.
+All checked on 2026-10-28; see [references.md](references.md). Pin exact versions in lockfiles. Re-check before Phase 1 and Phase 5.
 
 ### Mobile
 
