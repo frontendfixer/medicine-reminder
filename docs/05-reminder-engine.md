@@ -67,6 +67,8 @@ For each `active` patient (never `suspended` or `archived`), each non-archived m
 
 **No end date** means the medicine runs as long as the subscription is active ([D-022](01-decisions.md#d-022-start-and-end-dates)). Generation stops when the patient is suspended and resumes on renewal.
 
+Implementation: `apps/api/src/doses/schedule.ts` (pure expansion, tested with property tests over random schedules, six time zones and DST windows) and `doses.service.ts` (writes rows in the caller's transaction). It uses the built-in `Temporal` (Node 26, [R-69](references.md)). Temporal's default for a time inside a gap shifts it by the gap length (02:30 → 03:30); D-086 wants the first valid minute after the gap (→ 03:00), so the gap's end is taken from the latest zone transition at or before the shifted instant. Two times that collapse onto one instant at a gap give one dose.
+
 ### Edits regenerate only future pending doses
 Inside one transaction, on `PATCH /v1/medicines/{id}`, timezone change or archive:
 1. Set `effective_until = now()` on the current version and insert the new version with `effective_from = now()` (medicine edits only).

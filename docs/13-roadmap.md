@@ -53,16 +53,16 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 
 **Depends on:** [03](03-data-model.md), [04 medicines/uploads/history](04-api.md#medicines), [05 dose generation](05-reminder-engine.md#dose-generation), [10 photos](10-security-privacy.md#photos). **Implements:** D-082, D-086, D-091.
 
-- [ ] Medicine create/update/archive; update closes version, opens new effective now
-- [ ] Schedule patterns: daily, weekdays, every N days; multiple times with own amount; start/end date
-- [ ] Name/amount snapshots on doses; archive never deletes
+- [x] Medicine create/update/archive; update closes version, opens new effective now (2026-10-30)
+- [x] Schedule patterns: daily, weekdays, every N days; multiple times with own amount; start/end date (2026-10-30)
+- [x] Name/amount snapshots on doses; archive never deletes (2026-10-30)
 - [ ] Photo: pick, resize/compress, EXIF removal verified, presign `PUT` to private R2, server `HEAD` check, size cap
 - [ ] Signed read URLs for owner and paired devices only; access audited
 - [ ] Dose generator Job Scheduler (daily) + on-demand regeneration (edit, archive, tz change)
-- [ ] `alert_due_at` frozen at generation via delay resolution medicine → patient → default
+- [x] `alert_due_at` frozen at generation via delay resolution medicine → patient → default; recomputed for future pending doses on a delay change (2026-10-30)
 - [ ] History and adherence endpoints (read-only for suspended)
 - [ ] Caregiver UI: medicine list/form, schedule editor, photo, history
-- [ ] Property tests across timezones and DST ([12](12-testing-and-slos.md#dose-generation-tests))
+- [x] Property tests across timezones and DST ([12](12-testing-and-slos.md#dose-generation-tests)) (2026-10-30; found and fixed a gap-boundary bug)
 
 **Exit gate:** generated doses match the schedule across timezones and DST.
 > Gate result: _not run_

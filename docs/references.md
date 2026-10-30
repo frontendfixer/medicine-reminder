@@ -101,6 +101,7 @@ All entries were checked on **2026-10-28** unless stated otherwise (R-56 to R-60
 | R-66 | Zod | https://zod.dev/api | Checked 2026-10-30. zod 4.6.7. `z.object` strips unknown keys; `z.email()`; `.min` / `.max` on strings count Unicode code points; errors via the `error` option; `safeParse` gives `error.issues` with `code`, `path`, `message` |
 | R-67 | ioredis | https://github.com/redis/ioredis | Checked 2026-10-30. 6.0.0. `new Redis("redis://…/db")`; `maxRetriesPerRequest`; an `error` listener is needed to see connection errors; `defineCommand` registers Lua scripts (uses EVALSHA); `quit()` closes |
 | R-68 | RFC 9106 (Argon2) | https://www.rfc-editor.org/rfc/rfc9106.html | Checked 2026-10-30. Section 3.1: secret value K is optional (at most 2^32-1 bytes); section 1: Argon2id MUST be supported; the RFC's parameter guidance does not cover K |
+| R-69 | MDN: Temporal | https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Temporal/ZonedDateTime/getTimeZoneTransition | Checked 2026-10-30. `getTimeZoneTransition('next'\|'previous')` returns the transition strictly after/before the instant; `disambiguation`: `compatible` (default) shifts a gap time forward by the gap length and takes the earlier offset in an overlap. Confirmed on Node 26.7.0 (global `Temporal`; TypeScript types via `lib: ESNext.Temporal`). fast-check 4.10.2 for property tests |
 
 ## Not yet checked (check before the phase that needs it)
 

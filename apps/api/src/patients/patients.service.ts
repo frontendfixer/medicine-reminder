@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import { AuditService } from '../audit/audit.service.js';
+import { DosesService } from '../doses/doses.service.js';
 import { EntitlementsService } from '../billing/entitlements.service.js';
 import { ApiException } from '../common/api-exception.js';
 import type { Db, Tx } from '../db/client.js';
@@ -9,7 +10,7 @@ import { FieldEncryption } from '../crypto/field-encryption.js';
 import { devices, doseInstances, pairingCodes, patients } from '../db/schema.js';
 import type { CreatePatientBody, UpdatePatientBody } from './patients.dto.js';
 import { patientView } from './patient-view.js';
-import { PatientsRepository, type PatientRow } from './patients.repository.js';
+import { assertPatientWritable, PatientsRepository, type PatientRow } from './patients.repository.js';
 
 // docs/04-api.md#patients. `userId` is always the signed-in caregiver; nothing here trusts an owner from the client.
 @Injectable()
@@ -20,6 +21,7 @@ export class PatientsService {
     private readonly entitlements: EntitlementsService,
     private readonly encryption: FieldEncryption,
     private readonly audit: AuditService,
+    private readonly doses: DosesService,
   ) {}
 
   async create(userId: string, body: CreatePatientBody) {
@@ -67,7 +69,7 @@ export class PatientsService {
   async update(userId: string, patientId: string, body: UpdatePatientBody) {
     return this.db.transaction(async (tx) => {
       const current = await this.repo.lockOwned(tx, userId, patientId);
-      assertWritable(current);
+      assertPatientWritable(current);
 
       const changes: Partial<typeof patients.$inferInsert> = {};
       if (body.display_name !== undefined) changes.displayName = this.encryption.encrypt('patients.display_name', body.display_name);
@@ -79,9 +81,9 @@ export class PatientsService {
       const [row] = await tx.update(patients).set({ ...changes, updatedAt: sql`now()` }).where(eq(patients.id, current.id)).returning();
       const fields = Object.keys(body).sort((a, b) => (a < b ? -1 : 1));
       await this.audit.record(tx, { actorType: 'caregiver', actorId: userId, patientId: current.id, action: 'patient.updated', targetType: 'patient', targetId: current.id, meta: { fields } });
+      if (body.missed_delay_min !== undefined) await this.doses.recomputeAlertDue(tx, { patientId: current.id }); // D-086
       if (body.timezone !== undefined && body.timezone !== current.timezone) {
-        // Regenerating future doses (D-040) and recomputing alert_due_at on a delay change (D-086) arrive with
-        // dose generation in Phase 2; there are no doses to change yet.
+        await this.doses.regeneratePatient(tx, current.id); // D-040: future pending doses follow the new timezone
         await this.audit.record(tx, { actorType: 'caregiver', actorId: userId, patientId: current.id, action: 'patient.timezone_changed', targetType: 'patient', targetId: current.id });
       }
       return this.viewIn(tx, row!);
@@ -131,6 +133,7 @@ export class PatientsService {
       if (current.status === 'suspended') throw new ApiException('PATIENT_SUSPENDED', 'Reminders are paused until the subscription is renewed.');
 
       const [row] = await tx.update(patients).set({ status: 'active', archivedAt: null, updatedAt: sql`now()` }).where(eq(patients.id, current.id)).returning();
+      await this.doses.regeneratePatient(tx, current.id);
       await this.audit.record(tx, { actorType: 'caregiver', actorId: userId, patientId: current.id, action: 'patient.reactivated', targetType: 'patient', targetId: current.id });
       return this.viewIn(tx, row!);
     });
@@ -149,11 +152,6 @@ export class PatientsService {
       .where(and(eq(patients.ownerUserId, userId), eq(patients.type, 'self'), sql`${patients.status} <> 'archived'`));
     if (existing) throw selfProfileExists();
   }
-}
-
-function assertWritable(patient: PatientRow): void {
-  if (patient.status === 'suspended') throw new ApiException('PATIENT_SUSPENDED', 'Reminders are paused until the subscription is renewed.');
-  if (patient.status === 'archived') throw new ApiException('PATIENT_ARCHIVED', 'This patient is archived. Reactivate them first.');
 }
 
 const selfProfileExists = () => new ApiException('SELF_PROFILE_EXISTS', 'You already have a self profile.');

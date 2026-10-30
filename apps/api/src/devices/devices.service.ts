@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { DosesService } from '../doses/doses.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { AppConfigService } from '../app-config/app-config.service.js';
 import type { Principal } from '../common/principal.js';
@@ -19,6 +20,7 @@ export class DevicesService {
     private readonly patients: PatientsRepository,
     private readonly audit: AuditService,
     private readonly config: AppConfigService,
+    private readonly doses: DosesService,
   ) {}
 
   async listForPatient(userId: string, patientId: string) {
@@ -83,12 +85,13 @@ export class DevicesService {
   }
 
   // D-086: with follow_device the patient's timezone is the one reported by the most recently seen device,
-  // which is the one that just checked in. Future doses are regenerated when dose generation exists (Phase 2 work).
+  // which is the one that just checked in. Future pending doses are rebuilt in the new zone.
   private async followDeviceTimezone(patientId: string, tz: string): Promise<void> {
     await this.db.transaction(async (tx) => {
       const [p] = await tx.select().from(patients).where(eq(patients.id, patientId)).for('update');
       if (!p || p.tzMode !== 'follow_device' || p.timezone === tz || p.status !== 'active') return;
       await tx.update(patients).set({ timezone: tz, updatedAt: sql`now()` }).where(eq(patients.id, patientId));
+      await this.doses.regeneratePatient(tx, patientId);
       await this.audit.record(tx, { actorType: 'system', patientId, action: 'patient.timezone_changed', targetType: 'patient', targetId: patientId, meta: { source: 'device' } });
     });
   }

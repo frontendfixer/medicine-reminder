@@ -13,7 +13,7 @@ export function generateCode(): string {
 // Uppercase, drop spaces and dashes. Returns null unless it is exactly 8 symbols from the alphabet.
 export function normalizeCode(input: string): string | null {
   const code = input.toUpperCase().replace(/[\s-]/g, '');
-  return code.length === LENGTH && [...code].every((c) => ALPHABET.includes(c)) ? code : null;
+  return code.length === LENGTH && code.split('').every((c) => ALPHABET.includes(c)) ? code : null;
 }
 
 export const formatCode = (code: string) => `${code.slice(0, 4)}-${code.slice(4)}`;

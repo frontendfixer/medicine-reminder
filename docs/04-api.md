@@ -47,6 +47,7 @@ All `device` endpoints are scoped to the token's `patient_id`. All `caregiver` e
 | 409 | `PATIENT_LIMIT_REACHED` | Quota (D-053) |
 | 409 | `SELF_PROFILE_EXISTS` | Second active self profile (D-092) |
 | 409 | `PATIENT_ARCHIVED` | Edit or pair an archived patient; reactivate first |
+| 409 | `MEDICINE_ARCHIVED` | Edit an archived medicine |
 | 409 | `DEVICE_LIMIT_REACHED` | 3 active devices (D-018, [D-084](01-decisions.md#d-084-pairing-limits-device-limit-and-code-lookup)) |
 | 409 | `IDEMPOTENCY_KEY_REUSED` | See above |
 | 409 | `REQUEST_IN_PROGRESS` | Same key, first request still running (`Retry-After: 1`) |
@@ -169,6 +170,8 @@ Full rules: [06-pairing-and-devices](06-pairing-and-devices.md#pairing).
   }
 }
 ```
+
+**Implementation** (`apps/api/src/medicines/`, `doses/`, `settings/`): every lookup goes medicine → patient → owner (other caregivers get `404`); lock order is patient, then medicine. *Any* `PATCH` closes the open schedule version and opens a new one effective now (copying the old schedule when it was not sent, `start_date` included, so an `every_n_days` cycle never shifts), deletes future `pending` doses of that medicine, and regenerates, so name snapshots and delays are always current. `null` clears `notes`, `photo_object_key` and `missed_delay_min`. Editing an archived medicine is `409 MEDICINE_ARCHIVED`. `photo_object_key` must be `p/{patientId}/m/{id}.jpg` for that patient. A patient's timezone change, delay change and reactivation rebuild or recompute doses the same way; a changed default delay (`PATCH /v1/settings`) recomputes `alert_due_at` for pending doses still in the future (D-086).
 
 ## Uploads
 

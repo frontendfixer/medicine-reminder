@@ -11,12 +11,14 @@ import { CryptoModule } from './crypto/crypto.module.js';
 import { DatabaseModule } from './db/database.module.js';
 import { IdempotencyModule } from './idempotency/idempotency.module.js';
 import { DevicesModule } from './devices/devices.module.js';
+import { MedicinesModule } from './medicines/medicines.module.js';
 import { PairingModule } from './pairing/pairing.module.js';
 import { PatientsModule } from './patients/patients.module.js';
+import { SettingsModule } from './settings/settings.module.js';
 import { RedisModule } from './redis/redis.module.js';
 
 @Module({
-  imports: [DatabaseModule, CryptoModule, RedisModule, IdempotencyModule, AuthModule, BillingModule, AuditModule, PatientsModule, PairingModule, DevicesModule, AppConfigModule],
+  imports: [DatabaseModule, CryptoModule, RedisModule, IdempotencyModule, AuthModule, BillingModule, AuditModule, PatientsModule, PairingModule, DevicesModule, AppConfigModule, MedicinesModule, SettingsModule],
   controllers: [AppController],
   providers: [AppService, { provide: APP_FILTER, useClass: ApiExceptionFilter }],
 })
