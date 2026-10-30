@@ -20,10 +20,11 @@ import { StorageModule } from './storage/storage.module.js';
 import { TransferModule } from './transfer/transfer.module.js';
 import { UploadsModule } from './uploads/uploads.module.js';
 import { SettingsModule } from './settings/settings.module.js';
+import { PrivacyModule } from './privacy/privacy.module.js';
 import { RedisModule } from './redis/redis.module.js';
 
 @Module({
-  imports: [DatabaseModule, CryptoModule, RedisModule, IdempotencyModule, AuthModule, BillingModule, AuditModule, PatientsModule, PairingModule, DevicesModule, AppConfigModule, MedicinesModule, SettingsModule, StorageModule, UploadsModule, DeviceSyncModule, HistoryModule, TransferModule],
+  imports: [DatabaseModule, CryptoModule, RedisModule, IdempotencyModule, AuthModule, BillingModule, AuditModule, PatientsModule, PairingModule, DevicesModule, AppConfigModule, MedicinesModule, SettingsModule, StorageModule, UploadsModule, DeviceSyncModule, HistoryModule, TransferModule, PrivacyModule],
   controllers: [AppController],
   providers: [AppService, { provide: APP_FILTER, useClass: ApiExceptionFilter }],
 })

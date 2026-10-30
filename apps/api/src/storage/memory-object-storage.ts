@@ -20,6 +20,10 @@ export class MemoryObjectStorage extends ObjectStorage {
   readStart(key: string, bytes: number): Promise<Buffer> {
     return Promise.resolve(this.objects.get(key)?.body.subarray(0, bytes) ?? Buffer.alloc(0));
   }
+  putObject(key: string, body: Buffer, contentType: string): Promise<void> {
+    this.put(key, body, contentType);
+    return Promise.resolve();
+  }
   delete(key: string): Promise<void> {
     this.objects.delete(key);
     return Promise.resolve();

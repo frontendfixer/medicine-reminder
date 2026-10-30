@@ -14,5 +14,6 @@ import { TokensService } from './tokens.service.js';
   imports: [JwtModule.register({}), BillingModule], // the secret is passed per call by TokensService
   controllers: [AuthController],
   providers: [AuthService, PasswordService, TokensService, LoginThrottle, { provide: APP_GUARD, useClass: AuthGuard }],
+  exports: [PasswordService, LoginThrottle],
 })
 export class AuthModule {}

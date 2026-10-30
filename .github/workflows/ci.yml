@@ -1,0 +1,73 @@
+# Typecheck, lint, unit, integration (real PostgreSQL 18 and Redis 8), and the isolation matrix.
+# Action versions checked 2026-10-30: checkout v7.0.1, setup-node v7.1.0, pnpm/action-setup v6.1.0 (docs/references.md R-73).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: med
+          POSTGRES_PASSWORD: med
+          POSTGRES_DB: med
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U med -d med" --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:8-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      CI: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6 # pnpm version comes from "packageManager" in package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Create the integration database
+        run: PGPASSWORD=med psql -h localhost -U med -d med -c 'CREATE DATABASE med_test'
+
+      # Throwaway secrets for this run only. Real ones live in the secret manager (docs/10-security-privacy.md).
+      - name: Write test environment
+        working-directory: apps/api
+        run: |
+          {
+            echo "DATABASE_URL=postgres://med:med@localhost:5432/med"
+            echo "DATABASE_URL_TEST=postgres://med:med@localhost:5432/med_test"
+            echo "REDIS_URL=redis://localhost:6379/0"
+            echo "REDIS_URL_TEST=redis://localhost:6379/1"
+            echo "FIELD_ENCRYPTION_KEYS=ci1:$(openssl rand -base64 32)"
+            echo "FIELD_ENCRYPTION_ACTIVE_KID=ci1"
+            echo "HMAC_PEPPER=$(openssl rand -base64 32)"
+            echo "JWT_ACCESS_SECRET=$(openssl rand -base64 32)"
+            echo "PASSWORD_PEPPER=$(openssl rand -base64 32)"
+            echo "DEV_GRANT_STARTER=true"
+          } > .env
+
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - name: Unit tests
+        run: pnpm test
+      - name: Integration tests and isolation matrix
+        run: pnpm --filter @med/api test:int
+      - name: End-to-end smoke test
+        run: pnpm --filter @med/api test:e2e
+
+      # D-073: the mobile app's merged Android manifest must never contain USE_EXACT_ALARM. Added with the
+      # mobile build job once `apps/mobile` has native config; the check belongs to that job, not this one.

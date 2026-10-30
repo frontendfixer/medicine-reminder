@@ -12,6 +12,7 @@ import { deviceSummary } from '../patients/patient-view.js';
 import { PatientsRepository, patientNotFound } from '../patients/patients.repository.js';
 import type { HeartbeatBody } from './devices.dto.js';
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SYNC_WINDOW_HOURS = 48; // ask a phone to sync when its scheduled window ends sooner than this (05)
 
 @Injectable()
@@ -33,6 +34,7 @@ export class DevicesService {
   }
 
   async revoke(userId: string, deviceId: string) {
+    if (!UUID.test(deviceId)) throw patientNotFound(); // same 404 as a device that isn't yours
     return this.db.transaction(async (tx) => {
       // Only a patient device of a patient this caregiver owns. Anything else is a 404.
       const [row] = await tx

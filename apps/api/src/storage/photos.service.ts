@@ -54,6 +54,19 @@ export class PhotosService {
     return { url: await this.storage.presignGet(key, READ_URL_SECONDS), expires_at: new Date(Date.now() + READ_URL_SECONDS * 1000), etag: photoEtag(key) };
   }
 
+  // Exports are private, short-lived files (docs/10-security-privacy.md); set an R2 lifecycle rule to expire `exports/`.
+  async putExport(key: string, body: Buffer): Promise<void> {
+    await this.storage.putObject(key, body, 'application/json');
+  }
+
+  async exists(key: string): Promise<boolean> {
+    return (await this.storage.head(key)) !== null;
+  }
+
+  signedGet(key: string, seconds = READ_URL_SECONDS): Promise<string> {
+    return this.storage.presignGet(key, seconds);
+  }
+
   deleteQuietly(key: string | null): void {
     if (key) void this.storage.delete(key).catch(() => this.log.warn('could not delete an orphaned photo'));
   }

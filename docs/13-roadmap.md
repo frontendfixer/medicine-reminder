@@ -36,10 +36,10 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 - [x] Device token issue/hash/rotate (re-pair); `Device` auth guard; revoke endpoint (2026-10-30)
 - [ ] Patient app: scan/type code, consent screen, secure-store token (`AFTER_FIRST_UNLOCK`), rejected-token screen
 - [ ] Caregiver app: generate code screen, "Patient connected on …", Revoke, Re-pair
-- [ ] Audit log writes for pairing, revoke, patient changes
-- [ ] Isolation test harness (route matrix) in CI
+- [x] Audit log writes for pairing, revoke, patient changes (and medicines, transfer, billing, settings, export, deletion) (2026-10-30)
+- [x] Isolation test harness (route matrix) in CI (`isolation.int-spec.ts` + `.github/workflows/ci.yml`; the workflow has not run on GitHub yet) (2026-10-30)
 - [ ] i18n setup: all strings in `en` translation files; lint rule for raw strings
-- [ ] Sentry in app and API with scrubbing + a test asserting no PII in events
+- [~] Sentry in the API with scrubbing + an end-to-end test asserting no PII in events (2026-10-30); the app side is app work
 - [x] `GET /v1/app/config` with minimum version, plus the `426` guard (2026-10-30)
 
 **Exit gate:** a real phone pairs with a code and a revoked device is refused.
@@ -136,7 +136,7 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 - [ ] OEM battery checks on the beta group's own phones (Samsung, Xiaomi/Oppo if present) + OEM guidance screens
 - [ ] Security review: auth, pairing abuse, isolation, scrubbing, secrets, dependency audit
 - [ ] PITR restore drill passed ([14](14-release-and-ops.md#restore-drill))
-- [ ] DPDP: consent flows, notice, export, in-app deletion, grievance contact, retention rules; legal review sign-off (C-10)
+- [~] DPDP, server side: consents stored, export and in-app deletion done (2026-10-30); notice text, grievance contact (OI-19), retention rules and legal sign-off (C-10) are still open
 - [ ] Disclaimer screens (reminder tool, not medical advice; consult a doctor)
 - [ ] Store listings, privacy policy, Play Data safety, Health apps declaration, App Store privacy details
 - [ ] Play exact-alarm justification (D-073); OEM battery guidance screens (D-074)

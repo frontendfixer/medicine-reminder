@@ -12,4 +12,6 @@ export abstract class ObjectStorage {
   // The first `bytes` of the object, to look for EXIF markers.
   abstract readStart(key: string, bytes: number): Promise<Buffer>;
   abstract delete(key: string): Promise<void>;
+  // Server-side upload, for data exports.
+  abstract putObject(key: string, body: Buffer, contentType: string): Promise<void>;
 }

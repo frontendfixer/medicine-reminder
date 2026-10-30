@@ -1,5 +1,6 @@
 import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException, Logger } from '@nestjs/common';
 import { ERROR_STATUS, type ApiErrorBody, type ErrorCode } from '@med/shared';
+import * as Sentry from '@sentry/nestjs';
 import type { Response } from 'express';
 import { ApiException } from './api-exception.js';
 
@@ -44,7 +45,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
       }
     }
 
-    // Anything else is a bug. Log the class only: messages and stacks can carry request data.
+    // Anything else is a bug. Report it (scrubbed in beforeSend; a no-op without SENTRY_DSN) and log the class only:
+    // messages and stacks can carry request data.
+    Sentry.captureException(exception);
     this.logger.error(`Unhandled ${exception instanceof Error ? exception.constructor.name : typeof exception}`);
     res.status(ERROR_STATUS.INTERNAL).json(body('INTERNAL', GENERIC_MESSAGE.INTERNAL));
   }

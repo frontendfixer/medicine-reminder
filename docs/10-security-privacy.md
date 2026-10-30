@@ -72,7 +72,10 @@ Written in the same transaction as the action. Visible to the patient's **curren
 
 `meta` never contains medicine names or notes, only IDs and changed field names.
 
-### Observability scrubbing
+### Observability scrubbing (implemented)
+`apps/api/src/observability/`: `scrub.ts` runs in Sentry's `beforeSend` and `beforeBreadcrumb`. It drops request bodies, headers, cookies and query strings, keeps only the user's ID, removes stack-frame local variables and console breadcrumbs, and replaces any key on the deny list (name, notes, display_name, amount*, photo*, url, code, token, email, password, …) with `[Filtered]`. **Exception and breadcrumb messages are not sent** unless they are system errors such as `connect ECONNREFUSED`: free text can't be cleaned reliably (a message like "could not save <name>" would pass any pattern), and the end-to-end test caught exactly that. Errors only: no tracing, no profiling. `instrument.ts` starts Sentry only when `SENTRY_DSN` is set; the global filter reports unexpected (5xx) errors and nothing else. `sentry.int-spec.ts` pushes a real error through the real SDK into a recording transport and asserts that none of the planted names, notes, emails, tokens or passwords leave.
+
+### Observability scrubbing (original spec)
 ([D-063](01-decisions.md#d-063-observability), [R-20](references.md))
 - Sentry `beforeSend` / `beforeBreadcrumb` in app and API: drop request and response bodies. Strip fields named `name`, `notes`, `display_name`, `amount*`, `photo*`, `url`, `code`, `token`, `push_token`, `email`, `password`. Drop console breadcrumbs.
 - `sendDefaultPii: false`. Identify users by internal UUID only.

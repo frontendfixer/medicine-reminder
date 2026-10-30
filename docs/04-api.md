@@ -262,6 +262,10 @@ Rules: [05-reminder-engine](05-reminder-engine.md#answers-and-sync).
 | `POST /v1/me/export` | caregiver | — | `202 { request_id }`. The export is delivered in-app as a short-lived download link (D-067) |
 | `POST /v1/me/delete` | caregiver | `{ confirm: "DELETE", password }` | `202`. In-app account deletion ([D-081](01-decisions.md#d-081-in-app-account-deletion)); retention per [C-10](01-decisions.md#c-10-dpdp-act-and-rules--owner--legal-counsel-review-before-phase-5) |
 
+**Implementation** (`apps/api/src/privacy/`):
+- **Export:** `POST /v1/me/export` builds the JSON export of the caller's account, settings, consents and every patient they own (medicines, schedules, dose history, phones, activity), decrypted, with no password hash, token hash or push token. It is stored privately as `exports/{userId}/{requestId}.json`. `GET /v1/me/export/{requestId}` (added) returns a 15-minute signed download link, only to the person it belongs to. Three exports a day. Add an R2 lifecycle rule to expire `exports/`.
+- **Deletion:** needs `{ confirm: "DELETE", password }`. The password is checked with the same progressive delay as sign-in, so a stolen session can't guess it here. In one transaction it deletes patients, medicines, schedules, doses, phones, pairing codes, sessions and settings, then removes the photos after commit. `audit_log` and `notification_log` rows stay for the legal minimum (Rule 8(3), C-10), with their links to patients, phones and doses removed and `notification_log.data` cleared; consent and billing records stay. The user row is anonymised in place (`deleted-{id}@deleted.invalid`, `deleted_at` set), which frees the email address. **Not done:** deleting the customer in RevenueCat and clearing already-sent Sentry data. Retention for the logs is provisional until the C-10 legal review.
+
 ## App config
 
 | Method & path | Auth | Response |

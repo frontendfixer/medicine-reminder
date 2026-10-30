@@ -39,6 +39,10 @@ export class S3ObjectStorage extends ObjectStorage {
     return Buffer.from(await out.Body!.transformToByteArray());
   }
 
+  async putObject(key: string, body: Buffer, contentType: string): Promise<void> {
+    await this.s3.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType }));
+  }
+
   async delete(key: string): Promise<void> {
     await this.s3.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
   }
