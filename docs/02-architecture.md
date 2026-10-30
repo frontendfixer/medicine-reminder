@@ -120,7 +120,7 @@ All checked on 2026-10-28; see [references.md](references.md). Pin exact version
 | PostgreSQL | **18** (18.6) | 19 is at RC; don't adopt before GA + first minor |
 | ORM | `drizzle-orm` 0.45.4, `drizzle-kit` 0.31.11 | 1.0 at RC ([D-089](01-decisions.md#d-089-drizzle-045x)) |
 | Postgres driver | `pg` 8.23.1 | |
-| Auth | `@nestjs/jwt` 12.0.3, `@nestjs/throttler` 6.7.1, `@node-rs/argon2` 2.2.2 (or `argon2` 0.45.1) | Argon2id per OWASP ([R-47](references.md)) |
+| Auth | `@nestjs/jwt` 12.0.3, `@node-rs/argon2` 2.2.2, `zod` 4.6.7 (request validation), `ioredis` 6.0.0 | Argon2id per OWASP ([R-47](references.md), [R-64](references.md)). Throttling is our own Redis limiter, not `@nestjs/throttler`, because sign-in needs a per-email progressive delay. `@nestjs/authentication` 0.1.2 was evaluated and not adopted ([R-65](references.md)) |
 | Push | `expo-server-sdk` 8.0.0 | Access token if enhanced security is enabled ([D-090](01-decisions.md#d-090-expo-push-access-token)) |
 | Object storage | `@aws-sdk/client-s3` / `@aws-sdk/s3-request-presigner` 3.1158.0 | R2 S3 API endpoint (no custom domain for presigned URLs) |
 | Errors | `@sentry/nestjs` 11.9.0 | |

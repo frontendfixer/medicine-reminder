@@ -24,9 +24,9 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 - [x] Field-level encryption helper + key management (env keys from the secret manager, rotation by key ID; cloud KMS wrapping waits for the hosting choice) (2026-10-30)
 - [x] Idempotency-Key interceptor + `idempotency_keys` table (2026-10-30; exemptions for caller-less routes: OI-30)
 - [x] Error format and codes per [04](04-api.md#errors) (`ApiException` + global filter; codes in `@med/shared`) (2026-10-30)
-- [ ] Auth: email + password register/login (Argon2id + pepper, 8–128 chars, generic errors, per-account and per-IP throttling), refresh rotation, logout (D-095)
-- [ ] One active caregiver login: session replacement + "signed in elsewhere" notice
-- [ ] `caregiver_settings` with defaults (30 min, full, false)
+- [x] Auth: email + password register/login (Argon2id + pepper, 8–128 chars, generic errors, per-account and per-IP throttling), refresh rotation, logout (D-095) (2026-10-30)
+- [x] One active caregiver login: session replacement; `SESSION_REPLACED` on the old phone (the push to it comes with the Phase 3 push sender) (2026-10-30)
+- [x] `caregiver_settings` with defaults (30 min, full, false), created at register (2026-10-30)
 - [ ] Subscriptions table + server-side entitlement check stub; Starter = 3
 - [ ] Patients CRUD + archive/reactivate with quota check under row lock
 - [ ] Self profile creation (one per caregiver; subscription required)

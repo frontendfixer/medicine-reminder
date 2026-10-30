@@ -71,7 +71,16 @@ Cursor-based: `?cursor=<opaque>&limit=<1..100>` → `{ "items": [...], "next_cur
 | `POST /v1/auth/refresh` | none (refresh token in body) | `{ refresh_token }` | `200 { access_token, refresh_token }`. `401 SESSION_REPLACED` if the session was superseded |
 | `POST /v1/auth/logout` | caregiver | — | `204`. Revokes the session and the caregiver device row; the self-profile device on this phone is revoked too and its alarms cancelled ([D-083](01-decisions.md#d-083-sign-out-endpoint-and-idempotency-retention)) |
 
-`DeviceInfo = { platform, app_version, label, push_token?, tz }`
+`DeviceInfo = { platform, app_version, label?, push_token?, tz? }`
+
+**Implementation** (`apps/api/src/auth/`):
+- **Access token:** HS256 JWT, 15 minutes, claims `sub` (user), `sid` (session), issuer and audience checked. The guard also loads the session on every request, so a replaced or signed-out phone is refused at once: `SESSION_REPLACED` if another phone took over, `UNAUTHENTICATED` after logout. Every route is deny-by-default unless marked `@Public()`.
+- **Refresh token:** 32 random bytes, only an HMAC is stored, rotated on every use (the old one stops working). A session unused for 90 days expires. Refreshing a replaced session gives `SESSION_REPLACED`.
+- **Passwords:** NFKC-normalised, then Argon2id (m = 19 MiB, t = 2, p = 1) with the pepper as Argon2's secret input. 8–128 characters counted as Unicode code points. An unknown email runs the same Argon2 check against a dummy hash.
+- **Throttling** (Redis, so losing it only resets counters). These numbers are suggestions, not decisions:
+  - **Per account:** keyed by the email address, so unknown emails behave identically. Every attempt is counted atomically. The first 5 are free, then the delay is 30 s, doubling to a 15 minute cap; a delay blocks even the right password. A successful sign-in resets it; the count is forgotten after an hour without attempts.
+  - **Per IP:** 30 sign-in attempts per 10 minutes, 10 registrations per hour. Behind a proxy the app must set `trust proxy` so `req.ip` is the client.
+- **Not built yet:** the push to the old phone ("Signed in on another phone", Phase 3 push sender) and `self_profile_device_token` (self-profile item). `session_replaced_previous` is returned already.
 
 Emails are trimmed and lower-cased. Passwords are never logged or echoed.
 

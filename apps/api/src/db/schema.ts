@@ -362,8 +362,11 @@ export const authSessions = pgTable(
     createdAt: ts('created_at').notNull().defaultNow(),
     lastUsedAt: ts('last_used_at'),
     revokedAt: ts('revoked_at'),
+    // replaced = signed in on another phone (D-019): the old phone gets SESSION_REPLACED, not UNAUTHENTICATED
+    revokedReason: text('revoked_reason'),
   },
   (t) => [
+    check('auth_sessions_revoked_reason', sql`(${t.revokedAt} is null) = (${t.revokedReason} is null) and (${t.revokedReason} is null or ${t.revokedReason} in ('logout','replaced'))`),
     // one active login (D-019)
     uniqueIndex('auth_sessions_one_active_uq')
       .on(t.userId)

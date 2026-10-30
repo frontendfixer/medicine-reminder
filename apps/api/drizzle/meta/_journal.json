@@ -8,6 +8,13 @@
       "when": 1793368633431,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793370034369,
+      "tag": "0001_session_revoked_reason",
+      "breakpoints": true
     }
   ]
 }

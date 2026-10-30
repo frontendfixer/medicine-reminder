@@ -106,6 +106,17 @@ describe('schema', () => {
     await db.insert(s.devices).values({ ...base, userId: u.id });
   });
 
+  it('requires a reason whenever a session is revoked, and only known reasons', async () => {
+    const u = await user();
+    const [session] = await db.insert(s.authSessions).values({ userId: u.id, refreshHash: 'rr' }).returning();
+    const revoke = (set: Partial<typeof s.authSessions.$inferInsert>) =>
+      db.update(s.authSessions).set(set).where(sql`${s.authSessions.id} = ${session!.id}`);
+    await expectViolation(revoke({ revokedAt: new Date() }), 'auth_sessions_revoked_reason');
+    await expectViolation(revoke({ revokedReason: 'logout' }), 'auth_sessions_revoked_reason');
+    await expectViolation(revoke({ revokedAt: new Date(), revokedReason: 'because' }), 'auth_sessions_revoked_reason');
+    await revoke({ revokedAt: new Date(), revokedReason: 'replaced' });
+  });
+
   it('allows one active session per caregiver (D-019)', async () => {
     const u = await user();
     const [first] = await db.insert(s.authSessions).values({ userId: u.id, refreshHash: 'r1' }).returning();
@@ -113,7 +124,7 @@ describe('schema', () => {
       db.insert(s.authSessions).values({ userId: u.id, refreshHash: 'r2' }),
       'auth_sessions_one_active_uq',
     );
-    await db.update(s.authSessions).set({ revokedAt: new Date() }).where(sql`${s.authSessions.id} = ${first!.id}`);
+    await db.update(s.authSessions).set({ revokedAt: new Date(), revokedReason: 'logout' }).where(sql`${s.authSessions.id} = ${first!.id}`);
     await db.insert(s.authSessions).values({ userId: u.id, refreshHash: 'r2' });
   });
 
