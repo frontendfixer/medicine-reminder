@@ -25,6 +25,12 @@ Per [D-098](01-decisions.md#d-098-backend-built-in-one-pass-caller-less-redeem-r
 
 ---
 
+## Mobile status (2026-10-30)
+
+First slice of `apps/mobile`: mode choice, caregiver sign-in/register/consent, patient list and add, the pairing screen (code, QR, countdown, "connected on", revoke, re-pair), patient pairing (consent, scan or type), a read-only Today screen and the revoked-phone screen. 84 tests; the Android bundle builds. **Not built yet:** the local SQLite outbox, notification channels/categories/scheduler and lock-screen answers (Phase 3), permission onboarding, background tasks and heartbeat, medicine forms and schedule editor, photos, history, settings, paywall, transfer, account export/delete, Sentry in the app. The Phase 1 gate (a real phone pairs and a revoked phone is refused) can now be tried: see [apps/mobile/README.md](../apps/mobile/README.md).
+
+---
+
 ## Phase 0 — dropped ([D-097](01-decisions.md#d-097-no-phase-0-spike-fewer-tests-reliability-checked-in-phase-3))
 
 The reminder spike is removed; work starts at Phase 1. Its reliability checks moved to Phase 3, and its docs re-check is done (2026-10-28: R-02, R-03, R-49–R-55; no notification/alarm changes in Android 16/17, none listed by Apple for iOS 26).
@@ -53,11 +59,11 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 - [x] Redeem transaction with 5-attempt lock, rate limits (IP/install/global), device limit 3 (2026-10-30)
 - [x] Optional attestation, log-only: challenge issued, token recorded as `provided_unverified`; real verification needs Google/Apple credentials (2026-10-30)
 - [x] Device token issue/hash/rotate (re-pair); `Device` auth guard; revoke endpoint (2026-10-30)
-- [ ] Patient app: scan/type code, consent screen, secure-store token (`AFTER_FIRST_UNLOCK`), rejected-token screen
-- [ ] Caregiver app: generate code screen, "Patient connected on …", Revoke, Re-pair
+- [x] Patient app: scan/type code, consent screen, secure-store token (`AFTER_FIRST_UNLOCK`), rejected-token screen (2026-10-30; built and tested with fakes, **not yet tried on a phone**)
+- [x] Caregiver app: generate code screen (QR + countdown), "Connected on …", Revoke, Re-pair, plus sign-in/register with consent, patient list and add (2026-10-30; not yet tried on a phone)
 - [x] Audit log writes for pairing, revoke, patient changes (and medicines, transfer, billing, settings, export, deletion) (2026-10-30)
 - [x] Isolation test harness (route matrix) in CI (`isolation.int-spec.ts` + `.github/workflows/ci.yml`; the workflow has not run on GitHub yet) (2026-10-30)
-- [ ] i18n setup: all strings in `en` translation files; lint rule for raw strings
+- [x] i18n setup: all strings in `en.json`; a test fails on missing/unused keys and on raw text in screens (2026-10-30)
 - [~] Sentry in the API with scrubbing + an end-to-end test asserting no PII in events (2026-10-30); the app side is app work
 - [x] `GET /v1/app/config` with minimum version, plus the `426` guard (2026-10-30)
 
