@@ -52,6 +52,11 @@ export class EntitlementsService {
     await this.lock(tx, userId);
   }
 
+  // Any feature that needs a live subscription but no quota (pairing, transfer codes).
+  async assertSubscribed(tx: Tx, userId: string): Promise<void> {
+    await this.lock(tx, userId);
+  }
+
   private async lock(tx: Tx, userId: string): Promise<{ status: SubscriptionStatus; patientLimit: number }> {
     const [sub] = await tx
       .select({ status: subscriptions.status, patientLimit: subscriptions.patientLimit })

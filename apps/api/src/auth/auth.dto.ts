@@ -14,7 +14,7 @@ const newPassword = z
   .min(8, { error: 'must be 8 to 128 characters' })
   .max(128, { error: 'must be 8 to 128 characters' });
 
-const device = z.object(
+export const deviceInfo = z.object(
   {
     platform: z.enum(PLATFORMS, { error: 'must be ios or android' }),
     app_version: z.string({ error: 'is required' }).min(1).max(32),
@@ -28,7 +28,7 @@ const device = z.object(
 export const registerBody = z.object({
   email,
   password: newPassword,
-  device,
+  device: deviceInfo,
   consent: z.object({ notice_version: z.string({ error: 'is required' }).min(1).max(32) }, { error: 'is required' }),
 });
 
@@ -36,11 +36,11 @@ export const registerBody = z.object({
 export const loginBody = z.object({
   email,
   password: z.string({ error: 'is required' }).min(1, { error: 'is required' }).max(1024),
-  device,
+  device: deviceInfo,
 });
 
 export const refreshBody = z.object({ refresh_token: z.string({ error: 'is required' }).min(1).max(256) });
 
 export type RegisterBody = z.infer<typeof registerBody>;
 export type LoginBody = z.infer<typeof loginBody>;
-export type DeviceInfo = z.infer<typeof device>;
+export type DeviceInfo = z.infer<typeof deviceInfo>;

@@ -538,6 +538,14 @@ The owner accepted the recommended fixes for the conflicts and open items found 
   - The iOS items stay unverified (OI-29).
 - **Status:** Accepted
 
+### D-098 Backend built in one pass; caller-less redeem routes are exempt from Idempotency-Key
+- **Date:** 2026-10-30
+- **Decision:**
+  - **Backend ahead of phase order.** The owner asked for the whole backend API to be built now. The API in [04](04-api.md) and the jobs in [05](05-reminder-engine.md), [07](07-subscriptions-and-billing.md) and [09](09-missed-dose-alerts.md) are built together instead of phase by phase. This relaxes the "don't build ahead of the gate" rule in CLAUDE.md for the **backend only**. The phase **gates still decide when a phase counts as done**: device gates (Phase 3) and store/legal gates (Phase 5) can't be passed by code alone, and OI-01 (plans, prices) and C-10 (legal) are still open.
+  - **Exempt from `Idempotency-Key`:** `pairing/challenge`, `pairing/redeem` and `transfers/redeem`, like `auth/*`. Redeem is single-use by design and returns a device token that must not sit in the idempotency table. A lost response is fixed by generating a new code.
+  - **External services are built behind interfaces** (R2, Expo Push, RevenueCat, Play Integrity / App Attest). Code and tests use fakes; real credentials and the live calls are untested until the owner supplies them.
+- **Resolves:** OI-30 · **Status:** Accepted
+
 ## Conflicts found while documenting
 
 Found on 2026-10-28 by checking current official docs. Kept as history; each points to the decision that resolved it.
@@ -606,7 +614,7 @@ Found on 2026-10-28 by checking current official docs. Kept as history; each poi
 | OI-01 | Plan names, prices, and whether new caregivers get a free trial | Undecided. Only Starter = 3 is fixed. Needed before Phase 4 |
 | OI-18 | Retention of archived and suspended patients, medicines and history | Depends on C-10 legal review |
 | OI-29 | No iPhone available (owner, 2026-10-30) | Phase 0 no longer exists (D-097) and the iOS checks were never run, so D-027 (time-sensitive, Focus), D-076 (iOS lock-screen answers with the app killed), D-078 (64-request limit on current iOS) and D-079 (photo attachment) are unverified. Must be run on a real iPhone, or iOS dropped from v1 by a new decision, before Phase 3 ends and before any iOS release. The iPhone half of the Phase 3 gate can't pass until then |
-| OI-30 | Idempotency on writes with no caller, or with secrets in the response | Found while building the interceptor (2026-10-30). Doc 04 requires `Idempotency-Key` on all writes except `auth/*` and the webhook, but (a) `pairing/redeem` and `pairing/challenge` have no authenticated caller, so there is no principal to scope a key to, and (b) `pairing/redeem` and transfer redeem return a device token, which the idempotency table would store. **Recommended fix:** exempt `pairing/challenge`, `pairing/redeem` and `transfer/redeem` like `auth/*`. Redeem is single-use by design (a retry gets `CODE_EXPIRED_OR_USED`), and a lost response is recovered by generating a new code. Until you decide, the interceptor fails closed (500) on any write without a caller, so nothing slips through unprotected |
+| OI-30 | Idempotency on caller-less writes | Resolved by D-098 (redeem and challenge routes exempt) |
 | OI-19 | Named grievance contact and Data Protection contact | Needs a person and an address before store submission (Phase 5) |
 
 ### Resolved open items

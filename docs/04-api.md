@@ -18,6 +18,7 @@ All `device` endpoints are scoped to the token's `patient_id`. All `caregiver` e
 - Every `POST`, `PATCH` and `DELETE` accepts `Idempotency-Key: <uuid>`. It is required on all writes except `auth/*` and the webhook.
 - The server stores (`principal`, `key`) → request hash + response. It replays the stored response for an identical retry. A different body with the same key gets `409 IDEMPOTENCY_KEY_REUSED`. Records are kept for 24 hours per principal ([D-083](01-decisions.md#d-083-sign-out-endpoint-and-idempotency-retention)).
 - `POST /v1/device/dose-responses` is additionally idempotent per item by `client_event_id`.
+- **Exempt writes** (D-098): `auth/*`, the RevenueCat webhook, `pairing/challenge`, `pairing/redeem`, `transfers/redeem` (no caller, or the response carries a secret), and `devices/heartbeat` (repeatable, and its response must be fresh).
 - **How it works** (`apps/api/src/idempotency/`):
   - The key is a UUID; a missing or malformed key is `400 VALIDATION_FAILED`. The server claims `(principal, key)` atomically before running the handler, so concurrent identical requests run it once.
   - The request hash is an HMAC of method, path, query and the body with sorted keys, so reordered JSON counts as the same request. Same key with a different hash, method or path is `409 IDEMPOTENCY_KEY_REUSED`.
@@ -73,7 +74,7 @@ Cursor-based: `?cursor=<opaque>&limit=<1..100>` → `{ "items": [...], "next_cur
 | `POST /v1/auth/refresh` | none (refresh token in body) | `{ refresh_token }` | `200 { access_token, refresh_token }`. `401 SESSION_REPLACED` if the session was superseded |
 | `POST /v1/auth/logout` | caregiver | — | `204`. Revokes the session and the caregiver device row; the self-profile device on this phone is revoked too and its alarms cancelled ([D-083](01-decisions.md#d-083-sign-out-endpoint-and-idempotency-retention)) |
 
-`DeviceInfo = { platform, app_version, label?, push_token?, tz? }`
+`DeviceInfo = { platform, app_version, label?, push_token?, tz? }`. For `pairing/redeem` it also carries `install_id` (a random ID the app makes on first launch; it keys the per-install rate limit and lets re-pairing replace the old device row).
 
 **Implementation** (`apps/api/src/auth/`):
 - **Access token:** HS256 JWT, 15 minutes, claims `sub` (user), `sid` (session), issuer and audience checked. The guard also loads the session on every request, so a replaced or signed-out phone is refused at once: `SESSION_REPLACED` if another phone took over, `UNAUTHENTICATED` after logout. Every route is deny-by-default unless marked `@Public()`.
@@ -123,6 +124,8 @@ A successful sign-in revokes any previous active session and caregiver device ro
 | `POST /v1/pairing/redeem` | none | `{ code, device: DeviceInfo, attestation?: { platform, token \| key_id + attestation_object, challenge }, consent: { notice_version } }` | `201 { device_id, device_token, patient: { id, display_name, timezone } }`. Errors: `CODE_INVALID`, `CODE_EXPIRED_OR_USED`, `DEVICE_LIMIT_REACHED`, `RATE_LIMITED` |
 
 Full rules: [06-pairing-and-devices](06-pairing-and-devices.md#pairing).
+
+**Implementation** (`apps/api/src/pairing/`, `devices/`, `app-config/`): redeem locks in the order subscription → patient → code, so it can't deadlock with code generation. Attestation is accepted and recorded as `provided_unverified` in the audit row (log-only, D-013); the challenge is a stateless signed nonce. A device token is looked up by keyed hash; the first call from a revoked phone alerts the caregiver (kind `pairing`, once per 12 h). Credentials: caregiver `Bearer` by default, `@DeviceAuth()` / `@AnyAuth()` per route. The global rate limit of 300 redeems per minute is a suggestion. `X-App-Version` below the minimum gets `426`, except `app/config`, `devices/heartbeat` and `device/dose-responses`; requests without the headers are not checked. `devices/heartbeat` sets `sync_needed` when the phone's `scheduled_through` is under 48 hours away or missing, and moves a `follow_device` patient to the reporting phone's timezone (D-086).
 
 ## Devices
 

@@ -100,6 +100,7 @@ export const devices = pgTable(
     pushInvalidAt: ts('push_invalid_at'), // set on DeviceNotRegistered (D-082)
     platform: platform().notNull(),
     label: text(), // "Pixel 8", shown to the caregiver (D-082)
+    installId: text('install_id'), // random per app install: per-install rate limits and re-pair (06)
     appVersion: text('app_version'),
     tz: text(), // IANA reported by the phone
     permNotifications: boolean('perm_notifications'),
@@ -121,6 +122,9 @@ export const devices = pgTable(
     uniqueIndex('devices_one_caregiver_login_uq')
       .on(t.userId)
       .where(sql`${t.userId} is not null and ${t.revokedAt} is null`),
+    index('devices_install_idx')
+      .on(t.patientId, t.installId)
+      .where(sql`${t.revokedAt} is null`),
     index('devices_patient_active_idx')
       .on(t.patientId)
       .where(sql`${t.revokedAt} is null`),
