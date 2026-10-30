@@ -106,7 +106,17 @@ All checked on 2026-10-28; see [references.md](references.md). Pin exact version
 | Sign-in | Email + password against our API ([D-095](01-decisions.md#d-095-caregiver-sign-in-is-email--password-in-v1)) | v1.1: `expo-apple-authentication` (58.0.2 when checked), `@react-native-google-signin/google-signin` (16.1.5 when checked); re-check versions then |
 | Billing | `react-native-purchases` 10.16.0 | RevenueCat SDK |
 | i18n | `expo-localization` 58.0.5, `i18next` 26.5.11, `react-i18next` 17.1.9 | English only at launch |
-| Errors | `@sentry/react-native` 8.32.0 | Scrubbing in `beforeSend` / `beforeBreadcrumb` |
+| Errors | `@sentry/react-native` 8.32.0 | Scrubbing in `beforeSend` / `beforeBreadcrumb` (not added to the app yet) |
+| Routing | `expo-router` 58.0.28 | File routes in `apps/mobile/app/` (groups `(auth)`, `(caregiver)`, `(pairing)`, `(patient)`). **Only screens go in `app/`**: every file there is a route, so tests live in `apps/mobile/tests/` ([R-74](references.md)) |
+| Tests | `jest-expo` 58.0.13, `jest` 30.5.2, `@testing-library/react-native` 14.1.0 | RNTL 14 is async: `await` every `render`, `fireEvent` and `find*` |
+| QR | `react-native-qrcode-svg` 6.3.49 + `react-native-svg` 15.16.0 | Shows the pairing QR to the caregiver |
+| Other | `expo-device` (phone label), `expo-crypto` (UUIDs), `expo-sqlite/kv-store` (mode, install ID) | The install ID is kept out of the keychain on purpose: iOS keeps keychain items across reinstalls |
+
+#### Mobile structure (`apps/mobile`)
+- `src/api/http.ts`: the one place that talks to the API (headers, errors, one shared token refresh, `SESSION_REPLACED`, rejected device token, forced update). `endpoints.ts` has one typed function per endpoint.
+- `src/session/session.ts`: a plain TypeScript service for who is using the phone (mode, caregiver tokens, the patient's device token). Tokens live in `expo-secure-store` with `AFTER_FIRST_UNLOCK`. React reads it through `useSession`.
+- `src/i18n/en.json`: every string a person reads. A test fails on a missing or unused key and on text written directly in a screen (this is the "lint rule for raw strings").
+- `src/ui/`: presentational components with large type and touch targets.
 
 ### Backend
 

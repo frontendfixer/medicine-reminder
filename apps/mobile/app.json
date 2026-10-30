@@ -22,6 +22,20 @@
       "eas": {
         "projectId": "e773da84-f39c-4435-b4c5-a16dac5125a1"
       }
-    }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Medicine Reminder uses the camera to scan the pairing code your caregiver shows you.",
+          "recordAudioAndroidPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      "expo-sqlite"
+    ],
+    "scheme": "medremind"
   }
 }
