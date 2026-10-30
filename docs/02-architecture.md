@@ -94,7 +94,7 @@ All checked on 2026-10-28; see [references.md](references.md). Pin exact version
 | Expo SDK | **58** (`expo` 58.0.20) | Development build via `expo-dev-client` 58.0.16 |
 | React Native / React | 0.88 (0.88.1) / 19.3.0 | Per SDK 58 |
 | Minimum OS | iOS 16.4, Android 7 | targetSdk 36, compileSdk 37 (SDK 58 defaults) |
-| Notifications | `expo-notifications` 58.1.6 | Local scheduling, categories/actions, channels, push token |
+| Notifications | `expo-notifications` 58.1.7 | Local scheduling, categories/actions, channels, push token |
 | Secure storage | `expo-secure-store` 58.0.2 | `AFTER_FIRST_UNLOCK` so background tasks can read the device token |
 | Local DB | `expo-sqlite` 58.0.14 | WAL; offline answer queue, dose cache |
 | Background work | `expo-background-task` 58.0.11 (+ `expo-task-manager` 58.0.12) | Refill and heartbeat |
@@ -117,6 +117,11 @@ All checked on 2026-10-28; see [references.md](references.md). Pin exact version
 - `src/session/session.ts`: a plain TypeScript service for who is using the phone (mode, caregiver tokens, the patient's device token). Tokens live in `expo-secure-store` with `AFTER_FIRST_UNLOCK`. React reads it through `useSession`.
 - `src/i18n/en.json`: every string a person reads. A test fails on a missing or unused key and on text written directly in a screen (this is the "lint rule for raw strings").
 - `src/ui/`: presentational components with large type and touch targets.
+- `index.ts` is the app entry (`main`). It imports `src/reminders/task` first, so the notification-response task is defined in global scope before the router starts, including when the OS starts the app in the background ([R-75](references.md)).
+- `src/reminders/` is the local reminder core. `store.ts` is SQLite (`doses`, `outbox`, `kv`; migrations by `user_version`; answers and their outbox rows are written in one transaction, with the D-085 snooze rule). `plan.ts` is pure: it turns stored doses into the notifications that should exist (ids `dose:{id}`, `:f{n}` follow-ups, `:s` snooze; budget 60 on iOS, 450 guard on Android; D-078 trimming) and diffs that against what is scheduled. `engine.ts` (`RemindersEngine`) runs sync, reschedule, answer, outbox flush and heartbeat. `expo-notifier.ts` is the only file that calls `expo-notifications`; `expo-sql.ts` is the only one that calls `expo-sqlite`. The phone never computes doses: it only plans notifications for doses the server issued.
+- `src/runtime.ts` holds the singleton session and reminders engine, shared by React and by the background task. Pairing to a different patient wipes the local store.
+- Tests run the real store on SQLite through `node:sqlite` (`src/testing/node-sql.ts`) and a fake notifier, so reconciliation, outbox and answer rules are tested without a phone.
+- `scripts/check-manifest.js` checks the Android manifest from `expo prebuild` (D-073, D-074); CI runs it.
 
 ### Backend
 

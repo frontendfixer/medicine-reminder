@@ -7,7 +7,8 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.frontendfixer.medicinereminder"
     },
     "android": {
       "adaptiveIcon": {
@@ -16,7 +17,18 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.SCHEDULE_EXACT_ALARM"
+      ],
+      "blockedPermissions": [
+        "android.permission.USE_EXACT_ALARM",
+        "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
+      "package": "com.frontendfixer.medicinereminder"
     },
     "extra": {
       "eas": {
@@ -30,11 +42,19 @@
         "expo-camera",
         {
           "cameraPermission": "Medicine Reminder uses the camera to scan the pairing code your caregiver shows you.",
-          "recordAudioAndroidPermission": false,
-          "microphonePermission": false
+          "microphonePermission": false,
+          "recordAudioAndroid": false
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-notifications",
+        {
+          "sounds": [
+            "./assets/sounds/dose_alarm.wav"
+          ]
+        }
+      ]
     ],
     "scheme": "medremind"
   }

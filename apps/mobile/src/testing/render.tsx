@@ -1,6 +1,11 @@
 import { render } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
+import { RemindersProvider } from '../reminders/provider';
+import { RemindersEngine } from '../reminders/engine';
+import { Store } from '../reminders/store';
 import { SessionProvider } from '../session/provider';
+import { FakeNotifier } from './fake-notifier';
+import { nodeSql } from './node-sql';
 import { SessionService } from '../session/session';
 import { memoryStorage } from '../session/storage';
 
@@ -39,3 +44,28 @@ export async function renderScreen(ui: ReactElement, service: SessionService, op
 }
 
 export const caregiverTokens = { access_token: 'A1', refresh_token: 'R1', user: { id: 'u1', email: 'a@b.co' }, session_replaced_previous: false };
+
+// The Today screen's world: the real engine and store (on real SQLite), a fake notification system, and the scripted server.
+export async function renderToday(ui: ReactElement, service: SessionService) {
+  await service.load();
+  const store = new Store(nodeSql());
+  await store.migrate();
+  const notifier = new FakeNotifier();
+  let n = 0;
+  const engine = new RemindersEngine({
+    store,
+    notifier,
+    api: { sync: () => service.api.device.sync(), respond: (r) => service.api.device.respond(r), heartbeat: (b) => service.api.device.heartbeat(b) },
+    platform: 'android',
+    appVersion: '1.0.0',
+    timeZone: () => 'Asia/Kolkata',
+    patientId: () => service.getState().patient?.patientId ?? null,
+    newId: () => `ev-${++n}`,
+  });
+  const view = await render(
+    <SessionProvider service={service}>
+      <RemindersProvider value={{ engine, store }}>{ui}</RemindersProvider>
+    </SessionProvider>,
+  );
+  return { ...view, engine, store, notifier };
+}

@@ -27,7 +27,9 @@ Per [D-098](01-decisions.md#d-098-backend-built-in-one-pass-caller-less-redeem-r
 
 ## Mobile status (2026-10-30)
 
-First slice of `apps/mobile`: mode choice, caregiver sign-in/register/consent, patient list and add, the pairing screen (code, QR, countdown, "connected on", revoke, re-pair), patient pairing (consent, scan or type), a read-only Today screen and the revoked-phone screen. 84 tests; the Android bundle builds. **Not built yet:** the local SQLite outbox, notification channels/categories/scheduler and lock-screen answers (Phase 3), permission onboarding, background tasks and heartbeat, medicine forms and schedule editor, photos, history, settings, paywall, transfer, account export/delete, Sentry in the app. The Phase 1 gate (a real phone pairs and a revoked phone is refused) can now be tried: see [apps/mobile/README.md](../apps/mobile/README.md).
+Second slice (branch `mobile-reminders`): local SQLite store, sync engine, notification planner and scheduler, channels and categories, local-first answers on Today and from the lock screen, heartbeat, Android manifest check. Built and unit-tested, **not yet run on a phone** (needs a development build, not Expo Go). Still missing: permission onboarding (exact alarm, battery settings, test notification), background refill, push token registration, medicine forms, history, settings, paywall, transfer, account export/delete, Sentry.
+
+First slice of `apps/mobile`: mode choice, caregiver sign-in/register/consent, patient list and add, the pairing screen (code, QR, countdown, "connected on", revoke, re-pair), patient pairing (consent, scan or type), a read-only Today screen and the revoked-phone screen. 84 tests; the Android bundle builds. **Not built in that slice:** the local SQLite outbox, notification channels/categories/scheduler and lock-screen answers (Phase 3), permission onboarding, background tasks and heartbeat, medicine forms and schedule editor, photos, history, settings, paywall, transfer, account export/delete, Sentry in the app. The Phase 1 gate (a real phone pairs and a revoked phone is refused) can now be tried: see [apps/mobile/README.md](../apps/mobile/README.md).
 
 ---
 
@@ -101,21 +103,21 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 **Depends on:** [05](05-reminder-engine.md), [08](08-notifications-and-platform.md), [04 device sync](04-api.md#device-sync-and-answers). **Implements:** D-072, D-075, D-076, D-077, D-078, D-079, D-085, D-086, D-093, D-094.
 
 - [x] `GET /v1/device/sync` with cursor, window sizing per platform, photo URLs, `account_state`, `commands` (2026-10-30)
-- [ ] Phone scheduler: budget allocator across profiles, reconcile by dose ID, `scheduled_through`
-- [ ] Notification types → channels / interruption levels; lock-screen detail full/generic
+- [x] Phone scheduler: budget allocator across profiles, reconcile by dose ID, `scheduled_through` (2026-10-30; tested against a fake notifier, not yet on a phone)
+- [x] Notification types → channels / interruption levels; lock-screen detail full/generic (2026-10-30; channels `dose_standard_v1`, `dose_alarm_v1`, `dose_gentle_v1`; not yet on a phone)
 - [ ] Mandatory guided permission onboarding; skipped permissions reported
 - [x] Heartbeat endpoint and device fields updated (the phone-side triggers are app work) (2026-10-30)
-- [ ] Today screen: large buttons, photo, amount; works without notification permission
-- [ ] Lock-screen actions → SQLite outbox → batch `dose-responses` with `client_event_id`
+- [ ] Today screen: large buttons, photo, amount; works without notification permission (buttons, offline banner and local-first answers done 2026-10-30; photo and amount pending)
+- [x] Lock-screen actions → SQLite outbox → batch `dose-responses` with `client_event_id` (2026-10-30; the killed-app path is the device check below)
 - [x] Server answer rules: earliest wins, snooze limits, corrections, `dose_cleared` data push queued (2026-10-30; delivery needs the push sender)
 - [x] Sweeper Pass A: conditional backup push with outbox in `notification_log` (2026-10-30)
 - [x] Expo push sender (chunks ≤ 100, backoff) + receipts job (`DeviceNotRegistered` handling) (2026-10-30; live Expo calls untested without a token)
 - [ ] Refill: app open, `expo-background-task`, Android data push; visible push when window < 24 h
 - [x] Timezone follow-device: regenerate (done) + caregiver notice (queued by the heartbeat) (2026-10-30)
 - [ ] Reliability checks on one real Android phone, app killed, build from EAS (formerly Phase 0, D-097):
-  - Lock-screen Taken / Not taken / Snooze are saved with the app killed (`registerTaskAsync`, D-076), then sent on the next network
+  - Lock-screen Taken / Not taken / Snooze are saved with the app killed (`registerTaskAsync`, D-076), then sent on the next network. Also confirm the headless task can open the same SQLite file the app uses (the docs are silent, R-75)
   - Alarm follow-ups every 5 min with `delivery: 'alarmClock'` in forced Doze (`adb shell dumpsys deviceidle force-idle`); also check whether Standard/Gentle need it for doses within 9 min (D-072)
-  - Exact-alarm grant and revoke: status flips and the window re-schedules (D-073); CI check that the merged manifest has no `USE_EXACT_ALARM`
+  - Exact-alarm grant and revoke: status flips and the window re-schedules (D-073); CI check that the manifest has no `USE_EXACT_ALARM` (prebuilt manifest checked in CI 2026-10-30; the Gradle-merged one on the first build)
   - Battery-optimisation settings screen opens and the state is read via `expo-battery` (D-074)
   - Android data push to a killed app: delivered count recorded (D-075, best effort)
   - One overnight run: unplugged, locked, app killed; all doses fire within 1 min

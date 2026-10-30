@@ -71,6 +71,25 @@ export interface SyncResult {
   window: { from: string; through: string };
   commands: string[];
 }
+export interface DoseResponseItem {
+  client_event_id: string;
+  dose_id: string;
+  action: 'taken' | 'not_taken' | 'snooze';
+  responded_at: string;
+  network_restored_at: string | null;
+}
+export interface DoseResponseResult {
+  client_event_id: string;
+  outcome: 'applied' | 'duplicate' | 'superseded' | 'rejected';
+  dose: { id: string; status: DoseStatus; snooze_until: string | null; responded_at: string | null; alert_due_at: string } | null;
+}
+export interface Heartbeat {
+  push_token?: string;
+  permissions: { notifications: boolean; exact_alarm?: boolean; battery_unrestricted?: boolean; time_sensitive?: boolean };
+  app_version: string;
+  tz: string;
+  scheduled_through: string | null;
+}
 export interface Subscription {
   plan: string | null;
   patient_limit: number;
@@ -108,6 +127,10 @@ export function createApi(http: Http) {
     },
     device: {
       sync: () => http.request<SyncResult>('GET', '/v1/device/sync', { auth: 'device' }),
+      // Idempotent per item by client_event_id, so no Idempotency-Key (docs/04-api.md#device-sync-and-answers).
+      respond: (responses: DoseResponseItem[]) => http.request<{ results: DoseResponseResult[] }>('POST', '/v1/device/dose-responses', { auth: 'device', body: { responses }, idempotent: false }),
+      // Repeatable and its answer must be fresh, so no Idempotency-Key either.
+      heartbeat: (b: Heartbeat) => http.request<{ server_time: string; sync_needed: boolean; min_app_version: string }>('POST', '/v1/devices/heartbeat', { auth: 'device', body: b, idempotent: false }),
     },
   };
 }

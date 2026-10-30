@@ -69,9 +69,6 @@ jobs:
       - name: End-to-end smoke test
         run: pnpm --filter @med/api test:e2e
 
-      # D-073: the mobile app's merged Android manifest must never contain USE_EXACT_ALARM. Added with the
-      # mobile build job once `apps/mobile` has native config; the check belongs to that job, not this one.
-
   mobile:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -90,3 +87,9 @@ jobs:
       # (It caught test files placed under app/, which Expo Router treats as screens.)
       - name: Bundle the Android app
         run: CI=1 pnpm --filter @med/mobile exec expo export --platform android --output-dir "$RUNNER_TEMP/export"
+      # D-073 / D-074: SCHEDULE_EXACT_ALARM only, never USE_EXACT_ALARM or a direct battery-exemption request.
+      # This checks the manifest `expo prebuild` generates; the merged manifest from Gradle is checked on the first real build.
+      - name: Check Android manifest permissions
+        run: |
+          CI=1 pnpm --filter @med/mobile exec expo prebuild --platform android --no-install --clean
+          pnpm --filter @med/mobile check:manifest

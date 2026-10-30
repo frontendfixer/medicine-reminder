@@ -1,34 +1,16 @@
-import Constants from 'expo-constants';
-import * as Crypto from 'expo-crypto';
-import * as Device from 'expo-device';
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
-import { Platform } from 'react-native';
-import { SessionService, type SessionState } from './session';
-import { plainStorage, secureStorage } from './storage';
+import type { SessionService, SessionState } from './session';
 
 const SessionContext = createContext<SessionService | null>(null);
 
-// Where the API lives: EXPO_PUBLIC_API_URL is compiled into the bundle (see .env.example).
-export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:3000';
 // The privacy notice version people agree to. Re-consent is required when it changes (docs/10-security-privacy.md#consent).
 // The wording is a draft until the legal review in C-10 is done.
 export const NOTICE_VERSION = '2026-10-draft';
 
 export function SessionProvider({ children, service }: { children: ReactNode; service?: SessionService }) {
-  const value = useMemo(
-    () =>
-      service ??
-      new SessionService({
-        secure: secureStorage,
-        plain: plainStorage,
-        baseUrl: API_URL,
-        appVersion: Constants.expoConfig?.version ?? '0.0.0',
-        platform: Platform.OS === 'ios' ? 'ios' : 'android',
-        deviceLabel: Device.modelName ?? undefined,
-        newId: () => Crypto.randomUUID(),
-      }),
-    [service],
-  );
+  // The real session is the one in runtime.ts, shared with the headless task. It is required lazily so that screen tests,
+  // which pass their own service, never load the native modules behind it.
+  const value = useMemo<SessionService>(() => service ?? (require('../runtime') as typeof import('../runtime')).getSession(), [service]);
   useEffect(() => {
     void value.load();
   }, [value]);

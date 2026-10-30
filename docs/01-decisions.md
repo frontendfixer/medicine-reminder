@@ -546,6 +546,11 @@ The owner accepted the recommended fixes for the conflicts and open items found 
   - **External services are built behind interfaces** (R2, Expo Push, RevenueCat, Play Integrity / App Attest). Code and tests use fakes; real credentials and the live calls are untested until the owner supplies them.
 - **Resolves:** OI-30 · **Status:** Accepted
 
+### D-099 App identifiers: `com.frontendfixer.medicinereminder`
+- **Date:** 2026-10-30
+- **Decision:** `android.package` and `ios.bundleIdentifier` are both `com.frontendfixer.medicinereminder`, set in `apps/mobile/app.json`. The owner asked the agent to choose and said "do the package name as you need"; the name follows the GitHub account (`frontendfixer`) and the app slug. Both are permanent once an app is published to a store, so **change them only before the first store upload** (a rename after that creates a different app). A custom domain, if the owner gets one, would be a better prefix; if so, change it before the first Play Console upload.
+- **Status:** Accepted
+
 ## Conflicts found while documenting
 
 Found on 2026-10-28 by checking current official docs. Kept as history; each points to the decision that resolved it.

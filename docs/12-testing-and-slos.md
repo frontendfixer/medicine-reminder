@@ -7,7 +7,7 @@
 | Pure logic (shared) | Vitest (NestJS 12 packages are ESM-only; Jest needs Node 24.9+, [R-13](references.md)) | Dose expansion, delay resolution, window/budget allocator, code alphabet/normalisation, answer merge rules |
 | API unit | Vitest + Nest testing module | Services, guards (JWT vs device), idempotency interceptor, error mapping |
 | API integration | Vitest + real PostgreSQL 18 + Redis in containers | Transactions, `FOR UPDATE SKIP LOCKED`, partial indexes used (`EXPLAIN`), quota locking, pairing redeem, webhook dedupe |
-| Mobile unit | Jest via `jest-expo` (check the current Expo testing docs before setup) | Scheduler reconciliation, outbox, mode switch, i18n keys present |
+| Mobile unit | Jest via `jest-expo` ([R-74](references.md)); the SQLite store runs on `node:sqlite`, notifications on a fake notifier | Scheduler reconciliation, outbox, answer rules, mode switch, i18n keys present, Android manifest permissions |
 | Device (manual) | One real Android phone, checklist below | Alarms with app killed, locked, overnight |
 
 ### Dose generation tests

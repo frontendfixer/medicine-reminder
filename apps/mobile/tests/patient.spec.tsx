@@ -1,6 +1,7 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { router } from '../src/testing/expo-router-mock';
-import { apiError, caregiverTokens, json, makeService, renderScreen } from '../src/testing/render';
+import { localTime } from '../src/lib/time';
+import { apiError, caregiverTokens, json, makeService, renderScreen, renderToday } from '../src/testing/render';
 import Entry from '../app/index';
 import Pair from '../app/(pairing)/pair';
 import PatientLayout from '../app/(patient)/_layout';
@@ -130,47 +131,129 @@ describe('connecting a phone', () => {
 });
 
 describe('Today', () => {
-  it('lists the doses in the patient’s own time with their state', async () => {
-    const { service } = await paired(() => json(200, sync({ doses: [dose(), dose({ id: 'd2', name: 'Vitamin D', amount: '2 drops', status: 'taken', scheduled_at: '2026-11-01T15:30:00Z' })] })));
-    await renderScreen(<Today />, service, { load: false });
-    expect(await screen.findByText('Metformin')).toBeTruthy();
+  const MIN = 60_000;
+  const iso = (ms: number) => new Date(ms).toISOString();
+  // Doses are placed relative to the real clock, because the screen shows today's doses (within a day of now).
+  const at = (min: number) => Date.now() + min * MIN;
+  const live = (id: string, min: number, over: object = {}) => dose({ id, scheduled_at: iso(at(min)), alert_due_at: iso(at(min + 30)), ...over });
+  const server = (doses: object[], over: object = {}) => sync({ doses, window: { from: iso(at(0)), through: iso(at(5 * 24 * 60)) }, ...over });
+
+  it('lists the doses in the patient’s own time with their state, and leaves far-away ones out', async () => {
+    const { service } = await paired(() => json(200, server([live('now', 60), live('later', 600, { name: 'Vitamin D', amount: '2 drops', status: 'taken' }), live('far', 60 * 40, { name: 'Far away' })])));
+    await renderToday(<Today />, service);
+    expect((await screen.findAllByText('Metformin')).length).toBe(1);
     expect(screen.getByText('1 tablet')).toBeTruthy();
-    expect(screen.getByText('at 08:00 · Waiting')).toBeTruthy(); // 02:30 UTC is 08:00 in Kolkata
-    expect(screen.getByText('at 21:00 · Taken')).toBeTruthy();
+    expect(screen.getByText(`at ${localTime(iso(at(60)), 'Asia/Kolkata')} · Waiting`)).toBeTruthy();
+    expect(screen.getByText(`at ${localTime(iso(at(600)), 'Asia/Kolkata')} · Taken`)).toBeTruthy();
+    expect(screen.queryByText('Far away')).toBeNull();
+  });
+
+  it('schedules the reminders from what the server issued', async () => {
+    const { service } = await paired(() => json(200, server([live('a', 60), live('b', 120)])));
+    const { notifier } = await renderToday(<Today />, service);
+    await screen.findAllByText('Metformin');
+    await waitFor(() => expect(notifier.ids()).toEqual(['dose:a', 'dose:b']));
+  });
+
+  it('shows what the phone already holds when the server cannot be reached', async () => {
+    let up = true;
+    const { service } = await paired(() => (up ? json(200, server([live('a', 60)])) : apiError(500, 'INTERNAL')));
+    const { engine } = await renderToday(<Today />, service);
+    await screen.findByText('Metformin');
+    up = false;
+    await fireEvent.press(screen.getByTestId('refresh'));
+    expect(await screen.findByText('Something went wrong. Please try again.')).toBeTruthy();
+    expect(screen.getByText('Metformin')).toBeTruthy(); // still there, from the phone
+    expect(service.getState().patient).not.toBeNull();
+    void engine;
+  });
+
+  it('Taken: the buttons go, the answer is shown, it is sent with the device token, the reminders go', async () => {
+    const { service, requests } = await paired((path) => (path.includes('dose-responses') ? json(200, { results: [{ client_event_id: 'ev-1', outcome: 'applied', dose: null }] }) : json(200, server([live('a', 20)]))));
+    const { notifier } = await renderToday(<Today />, service);
+    await waitFor(() => expect(notifier.ids()).toEqual(['dose:a']));
+    await fireEvent.press(await screen.findByTestId('taken-a'));
+    expect(await screen.findByText('You answered: Taken')).toBeTruthy();
+    expect(screen.queryByTestId('taken-a')).toBeNull();
+    expect(notifier.ids()).toEqual([]);
+    await waitFor(() => expect(requests.some((r) => r.path === '/v1/device/dose-responses')).toBe(true));
+    const sent = requests.find((r) => r.path === '/v1/device/dose-responses')!;
+    expect(sent.headers.Authorization).toBe('Device DT');
+    expect(sent.headers['Idempotency-Key']).toBeUndefined();
+    expect(sent.body.responses[0]).toMatchObject({ dose_id: 'a', action: 'taken' });
+  });
+
+  it('with no connection the answer still counts, and the screen says it is saved on the phone', async () => {
+    let offline = false;
+    const { service } = await paired((path) => {
+      if (offline) throw new TypeError('Network request failed');
+      return json(200, server([live('a', 20)]));
+    });
+    const { notifier } = await renderToday(<Today />, service);
+    await screen.findByTestId('not-taken-a');
+    offline = true;
+    await fireEvent.press(screen.getByTestId('not-taken-a'));
+    expect(await screen.findByText('You answered: Not taken')).toBeTruthy();
+    expect(await screen.findByText('Saved on this phone. It will be sent when you are online.')).toBeTruthy();
+    expect(notifier.ids()).toEqual([]);
+  });
+
+  it('Snooze: shown while there is time, puts the reminder back 10 minutes later, and says when', async () => {
+    const { service } = await paired((path) => (path.includes('dose-responses') ? json(200, { results: [{ client_event_id: 'ev-1', outcome: 'applied', dose: null }] }) : json(200, server([live('a', 5, { alert_due_at: iso(at(5 + 60)) })]))));
+    const { notifier } = await renderToday(<Today />, service);
+    await fireEvent.press(await screen.findByTestId('snooze-a'));
+    expect(await screen.findByText(/Snoozed until/)).toBeTruthy();
+    expect(screen.getByText(/· Snoozed/)).toBeTruthy();
+    await waitFor(() => expect(notifier.ids()).toEqual(['dose:a:s']));
+    expect(notifier.byId.get('dose:a:s')!.fireAt).toBeGreaterThan(Date.now() + 9 * MIN);
+  });
+
+  it('hides Snooze when 10 minutes would pass the deadline (D-085)', async () => {
+    const { service } = await paired(() => json(200, server([live('a', -20, { alert_due_at: iso(at(5)) })])));
+    await renderToday(<Today />, service);
+    await screen.findByTestId('taken-a');
+    expect(screen.queryByTestId('snooze-a')).toBeNull();
+  });
+
+  it('a missed dose can still be answered, without Snooze (D-032)', async () => {
+    const { service } = await paired(() => json(200, server([live('a', -60, { status: 'missed' })])));
+    await renderToday(<Today />, service);
+    await screen.findByTestId('taken-a');
+    expect(screen.getByTestId('not-taken-a')).toBeTruthy();
+    expect(screen.queryByTestId('snooze-a')).toBeNull();
+    expect(screen.getByText(/· Missed/)).toBeTruthy();
   });
 
   it('works with nothing scheduled, and shows the paused and grace banners', async () => {
-    const empty = await paired(() => json(200, sync({ doses: [] })));
-    await renderScreen(<Today />, empty.service, { load: false });
+    const empty = await paired(() => json(200, server([])));
+    await renderToday(<Today />, empty.service);
     expect(await screen.findByText('No medicines scheduled.')).toBeTruthy();
   });
 
-  it('tells a patient whose caregiver’s plan lapsed (07)', async () => {
-    const paused = await paired(() => json(200, sync({ account_state: 'suspended', doses: [] })));
-    await renderScreen(<Today />, paused.service, { load: false });
+  it('tells a patient whose caregiver’s plan lapsed (07), and keeps no alarms', async () => {
+    const paused = await paired(() => json(200, server([], { account_state: 'suspended', commands: ['cancel_all'] })));
+    const { notifier } = await renderToday(<Today />, paused.service);
     expect(await screen.findByText('Reminders are paused. Ask your caregiver.')).toBeTruthy();
-    expect(screen.queryByText('No medicines scheduled.')).toBeNull();
+    expect(notifier.ids()).toEqual([]);
   });
 
   it('warns during the 1-day grace', async () => {
-    const grace = await paired(() => json(200, sync({ account_state: 'grace' })));
-    await renderScreen(<Today />, grace.service, { load: false });
+    const grace = await paired(() => json(200, server([live('a', 60)], { account_state: 'grace' })));
+    await renderToday(<Today />, grace.service);
     expect(await screen.findByText('Reminders stop tomorrow. Ask your caregiver.')).toBeTruthy();
   });
 
-  it('uses the device token, and keeps the reminders when the connection fails', async () => {
-    const { service, requests } = await paired(() => apiError(500, 'INTERNAL'));
-    await renderScreen(<Today />, service, { load: false });
-    expect(await screen.findByText('Something went wrong. Please try again.')).toBeTruthy();
-    expect(requests.at(-1)!.headers.Authorization).toBe('Device DT');
-    expect(service.getState().patient).not.toBeNull(); // still paired
-  });
-
-  it('a revoked phone goes to the "ask for a new code" screen and stays paired (D-015)', async () => {
-    const { service } = await paired(() => apiError(401, 'DEVICE_TOKEN_REJECTED'));
-    await renderScreen(<Today />, service, { load: false });
+  it('a revoked phone goes to the "ask for a new code" screen, stays paired, and keeps its reminders (D-015)', async () => {
+    let revoked = false;
+    const { service } = await paired(() => (revoked ? apiError(401, 'DEVICE_TOKEN_REJECTED') : json(200, server([live('a', 60)]))));
+    const { notifier, engine } = await renderToday(<Today />, service);
+    await screen.findByText('Metformin');
+    revoked = true;
+    await fireEvent.press(screen.getByTestId('refresh'));
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/rejected'));
     expect(service.getState()).toMatchObject({ deviceRejected: true, patient: { deviceToken: 'DT' } });
+    expect(notifier.ids()).toEqual(['dose:a']); // alarms already on the phone are not cancelled
+    void engine;
   });
 });
 

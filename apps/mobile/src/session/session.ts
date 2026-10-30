@@ -29,6 +29,8 @@ export interface SessionDeps {
   deviceLabel?: string;
   newId: () => string;
   fetch?: typeof fetch;
+  // Called after a successful pairing, with the patient this phone was paired to before (if any).
+  onPaired?: (now: PairedPatient, before: PairedPatient | null) => Promise<void>;
 }
 
 const K = {
@@ -156,9 +158,11 @@ export class SessionService {
     if (!code) throw new ApiError('CODE_INVALID', 422, 'That code is not right.');
     const result = await this.api.pairing.redeem({ code, device: { ...this.deviceInfo(), install_id: await this.installId() }, consent: { notice_version: noticeVersion } });
     const patient: PairedPatient = { deviceToken: result.device_token, patientId: result.patient.id, displayName: result.patient.display_name, timezone: result.patient.timezone };
+    const before = this.state.patient;
     await this.d.secure.set(K.patient, JSON.stringify(patient));
     await this.d.plain.remove(K.rejected);
     this.set({ patient, deviceRejected: false });
+    await this.d.onPaired?.(patient, before).catch(() => undefined);
     return patient;
   }
 
