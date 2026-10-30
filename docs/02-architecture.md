@@ -114,17 +114,27 @@ All checked on 2026-10-28; see [references.md](references.md). Pin exact version
 | --- | --- | --- |
 | Node.js | **26 LTS** (26.12.1) | Node 26 enters Active LTS 2026-10-28 per the release schedule; Node 24 is in Maintenance from 2026-10-20 ([R-12](references.md)) |
 | NestJS | 12 (`@nestjs/core` 12.3.2) | ESM-only packages; prefer Vitest (Jest needs Node 24.9+ for ESM) ([R-13](references.md)) |
-| Queue | `bullmq` 6.5.0, `@nestjs/bullmq` 12.0.0 | Job Schedulers |
+| Queue | `bullmq` 6.5.1, `@nestjs/bullmq` 12.0.0 | Job Schedulers |
 | Redis client | `ioredis` 6.0.0 | Workers: `maxRetriesPerRequest: null`. Redis: AOF on, `maxmemory-policy noeviction` ([R-17](references.md)) |
-| Redis server | *not yet checked* | Check the BullMQ minimum in Phase 1 |
+| Redis server | **8.x** (8.10.3); BullMQ minimum is 6.2 ([R-56](references.md)) | AOF on, `noeviction` |
 | PostgreSQL | **18** (18.6) | 19 is at RC; don't adopt before GA + first minor |
 | ORM | `drizzle-orm` 0.45.4, `drizzle-kit` 0.31.11 | 1.0 at RC ([D-089](01-decisions.md#d-089-drizzle-045x)) |
 | Postgres driver | `pg` 8.23.1 | |
-| Auth | `@nestjs/jwt` 12.0.3, `@nestjs/throttler` 6.7.1, `@node-rs/argon2` 2.2.2 (or `argon2` 0.45.1) | Argon2id per OWASP ([R-47](references.md)) |
+| Auth | `@nestjs/jwt` 12.0.3, `@node-rs/argon2` 2.2.2, `zod` 4.6.7 (request validation), `ioredis` 6.0.0 | Argon2id per OWASP ([R-47](references.md), [R-64](references.md)). Throttling is our own Redis limiter, not `@nestjs/throttler`, because sign-in needs a per-email progressive delay. `@nestjs/authentication` 0.1.2 was evaluated and not adopted ([R-65](references.md)) |
 | Push | `expo-server-sdk` 8.0.0 | Access token if enhanced security is enabled ([D-090](01-decisions.md#d-090-expo-push-access-token)) |
 | Object storage | `@aws-sdk/client-s3` / `@aws-sdk/s3-request-presigner` 3.1158.0 | R2 S3 API endpoint (no custom domain for presigned URLs) |
 | Errors | `@sentry/nestjs` 11.9.0 | |
 | Billing | RevenueCat REST API v2 | Secret key, server only |
+
+## Running the worker
+
+`pnpm --filter @med/api build`, then `pnpm --filter @med/api start:worker` (needs the same `.env`, including `REDIS_URL`; add `EXPO_ACCESS_TOKEN` for real pushes). The API process never runs jobs.
+
+## Local development
+
+- Prerequisites: Node 26, pnpm 11, Docker.
+- `docker compose up -d --wait` starts PostgreSQL 18 on `127.0.0.1:5442` and Redis 8 on `127.0.0.1:6389` (non-default ports so other projects don't clash). It also creates a `med_test` database.
+- `cp apps/api/.env.example apps/api/.env`, then in `apps/api`: `pnpm db:migrate` (dev database), `pnpm test` (unit), `pnpm test:int` (integration, resets `med_test` on every run).
 
 ## Module layout (API)
 

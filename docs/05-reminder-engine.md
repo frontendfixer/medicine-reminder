@@ -67,6 +67,8 @@ For each `active` patient (never `suspended` or `archived`), each non-archived m
 
 **No end date** means the medicine runs as long as the subscription is active ([D-022](01-decisions.md#d-022-start-and-end-dates)). Generation stops when the patient is suspended and resumes on renewal.
 
+Implementation: `apps/api/src/doses/schedule.ts` (pure expansion, tested with property tests over random schedules, six time zones and DST windows) and `doses.service.ts` (writes rows in the caller's transaction). It uses the built-in `Temporal` (Node 26, [R-69](references.md)). Temporal's default for a time inside a gap shifts it by the gap length (02:30 → 03:30); D-086 wants the first valid minute after the gap (→ 03:00), so the gap's end is taken from the latest zone transition at or before the shifted instant. Two times that collapse onto one instant at a gap give one dose.
+
 ### Edits regenerate only future pending doses
 Inside one transaction, on `PATCH /v1/medicines/{id}`, timezone change or archive:
 1. Set `effective_until = now()` on the current version and insert the new version with `effective_from = now()` (medicine edits only).
@@ -147,11 +149,14 @@ COMMIT;
 - A late or skipped tick (Redis restart, deploy) catches up, because selection is by time, not by tick.
 - **Sweeper lag** = `now() − min(scheduled_at)` of unprocessed due rows. It's exported as a metric ([12](12-testing-and-slos.md#slos)).
 
+Implementation: `apps/api/src/jobs/` (`sweeper.service.ts`, `device-health.ts`, `health.service.ts`, `dose-generator.service.ts`, `jobs.service.ts`) and `apps/api/src/push/`. Pass A treats an unreported permission as off (take no chances: an extra push costs little, a missed one a lot); the alert job (09) only counts a permission as off when the phone reported `false`, so onboarding doesn't raise alerts. Pass B, grouping and Pass C follow 09 and 07. The jobs are BullMQ Job Schedulers (`sweeper` 60 s, `outbox` 10 s, `push-receipts` 15 min, `device-health` 15 min, `dose-generator` daily 02:00 UTC) run by the **worker process** (`pnpm start:worker`), never by the API. Edits, timezone changes and reactivation generate doses synchronously inside their own transaction (stronger than a queued job); the daily job only tops up the horizon.
+
 ## Push delivery and receipts
 
 - Send via `expo-server-sdk` in chunks of ≤ 100, respecting 600 notifications/s per project. Retry `429`/`5xx` with exponential backoff; never retry `400` ([R-08](references.md)).
 - `push-receipts` job every 15 min: fetch receipts (≤ 1000 IDs per call) for tickets older than 15 min and younger than 24 h (receipts are deleted after 24 h).
 - `DeviceNotRegistered` (ticket or receipt): clear `devices.push_token` and set `push_invalid_at`. The device counts as unhealthy, which triggers a device problem alert ([09](09-missed-dose-alerts.md#device-problem-alerts)). The app re-registers its token on its next heartbeat.
+- Implementation (`push/outbox-sender.ts`): a batch of up to 100 queued rows is locked `FOR UPDATE SKIP LOCKED`, sent, and recorded in one transaction, so two senders never send a row twice. A provider failure is retried twice (200 ms, 800 ms) and then the rows stay `queued` for the next run. A row whose phone is gone or has no valid token is marked `failed` (`not_sendable`) rather than retried forever. Message text comes from `src/i18n/en.json` and carries only the patient's name or a phone label, never a medicine name, amount or note (D-077); `notification_log.data` holds the small parameters (event, device label, counts). Without `EXPO_ACCESS_TOKEN` (non-production) a fake transport sends nothing; production refuses to start without it.
 - `MessageRateExceeded`: back off for that device. `InvalidCredentials` / `MismatchSenderId`: page the owner (config error).
 
 ## Refill

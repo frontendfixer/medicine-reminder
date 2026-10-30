@@ -182,8 +182,9 @@ export const scheduleVersions = pgTable("schedule_versions", {
   createdAt: ts("created_at").notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("schedule_versions_current_uq").on(t.medicineId).where(sql`${t.effectiveUntil} is null`),
-  check("sv_weekdays", sql`${t.pattern} <> 'weekdays' or cardinality(${t.daysOfWeek}) between 1 and 7`),
-  check("sv_interval", sql`${t.pattern} <> 'every_n_days' or ${t.intervalDays} >= 2`),
+  // A CHECK passes when its expression is NULL, so each required column is coalesced to false.
+  check("sv_weekdays", sql`${t.pattern} <> 'weekdays' or coalesce(cardinality(${t.daysOfWeek}) between 1 and 7 and ${t.daysOfWeek} <@ array[1,2,3,4,5,6,7]::smallint[], false)`),
+  check("sv_interval", sql`${t.pattern} <> 'every_n_days' or coalesce(${t.intervalDays} >= 2, false)`),
   check("sv_dates", sql`${t.endDate} is null or ${t.endDate} >= ${t.startDate}`),
 ]);
 
@@ -294,9 +295,9 @@ Added by D-082 for sessions (one login), `Idempotency-Key` (kept 24 h, D-083), w
 
 | Table | Columns | Why |
 | --- | --- | --- |
-| `auth_sessions` | `id`, `user_id`, `device_id`, `refresh_hash`, `created_at`, `last_used_at`, `revoked_at`; partial unique on `user_id` where `revoked_at is null` | One active login (D-019), refresh rotation |
+| `auth_sessions` | `id`, `user_id`, `device_id`, `refresh_hash`, `created_at`, `last_used_at`, `revoked_at`, `revoked_reason` (`logout` or `replaced`; set together with `revoked_at`, enforced by a CHECK); partial unique on `user_id` where `revoked_at is null` | One active login (D-019), refresh rotation |
 | `otp_challenges` | `id`, `email`, `code_hash`, `expires_at`, `attempts`, `consumed_at`, `created_at` | **v1.1** — email OTP sign-in and verification (D-095) |
-| `idempotency_keys` | `principal` (user or device id), `key`, `method_path`, `request_hash`, `status_code`, `response_body jsonb`, `created_at`; PK (`principal`, `key`) | D-058 |
+| `idempotency_keys` | `principal` (user or device id), `key`, `method_path`, `request_hash`, `status_code`, `response_body jsonb`, `created_at`; PK (`principal`, `key`) | D-058. `request_hash` is an HMAC; `status_code` null = request in progress; `response_body` holds the encrypted response as a JSON string |
 | `rc_webhook_events` | `event_id` PK, `type`, `app_user_id`, `event_timestamp`, `received_at`, `processed_at` | Dedupe by event ID (D-051). `subscriptions.last_event_id` alone can't dedupe out-of-order retries |
 | `consents` | `id`, `subject_type` (caregiver/patient), `user_id`, `patient_id`, `device_id`, `kind` (signup/pairing), `notice_version`, `given_at`, `withdrawn_at` | DPDP proof of consent (D-067, C-10) |
 
@@ -333,6 +334,14 @@ erDiagram
   subscriptions { uuid user_id PK text plan int patient_limit enum status timestamptz renews_at text provider_ref text last_event_id }
   audit_log { uuid id PK text actor_type uuid actor_id uuid patient_id text action jsonb meta }
 ```
+
+## Implementation notes
+
+- **IDs** default to PostgreSQL 18's `uuidv7()` (time-ordered, [R-61](references.md)); callers may supply one. The sketch above omits the default for brevity.
+- **Code** lives in `apps/api/src/db/schema.ts`; enum values come from `@med/shared`. Migrations are generated into `apps/api/drizzle/` and applied with `drizzle-kit`.
+- **`otp_challenges`** is not created: it is v1.1 ([D-095](01-decisions.md#d-095-caregiver-sign-in-is-email--password-in-v1)).
+- **`CHECK` and NULL:** a `CHECK` passes when its expression is NULL, so checks that require a column (`sv_weekdays`, `sv_interval`) coalesce to false. The first sketch let a `weekdays` schedule with no days through; the integration test caught it.
+- The extra `CHECK`s on `notification_log.status`, `audit_log.actor_type` and `consents` just spell out the values listed in the comments and tables.
 
 ## Rules the schema relies on
 

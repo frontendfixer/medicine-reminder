@@ -18,6 +18,14 @@ All `device` endpoints are scoped to the token's `patient_id`. All `caregiver` e
 - Every `POST`, `PATCH` and `DELETE` accepts `Idempotency-Key: <uuid>`. It is required on all writes except `auth/*` and the webhook.
 - The server stores (`principal`, `key`) → request hash + response. It replays the stored response for an identical retry. A different body with the same key gets `409 IDEMPOTENCY_KEY_REUSED`. Records are kept for 24 hours per principal ([D-083](01-decisions.md#d-083-sign-out-endpoint-and-idempotency-retention)).
 - `POST /v1/device/dose-responses` is additionally idempotent per item by `client_event_id`.
+- **Exempt writes** (D-098): `auth/*`, the RevenueCat webhook, `pairing/challenge`, `pairing/redeem`, `transfers/redeem` (no caller, or the response carries a secret), and `devices/heartbeat` (repeatable, and its response must be fresh).
+- **How it works** (`apps/api/src/idempotency/`):
+  - The key is a UUID; a missing or malformed key is `400 VALIDATION_FAILED`. The server claims `(principal, key)` atomically before running the handler, so concurrent identical requests run it once.
+  - The request hash is an HMAC of method, path, query and the body with sorted keys, so reordered JSON counts as the same request. Same key with a different hash, method or path is `409 IDEMPOTENCY_KEY_REUSED`.
+  - A retry that arrives while the first is still running gets `409 REQUEST_IN_PROGRESS` with `Retry-After: 1`. A claim with no result after 60 s is treated as abandoned and can be taken over.
+  - Stored: `2xx` responses and expected `4xx` errors, replayed with the same status and body plus `Idempotent-Replayed: true`. Not stored: `5xx`, `408`, `425`, `429` and unexpected errors; the key is released so the retry runs again.
+  - Stored responses are encrypted (they can contain medicine names).
+  - A write without a caller (no principal) fails closed with `500`; such routes must be marked exempt on purpose (see OI-30).
 
 ### Errors
 ```json
@@ -37,12 +45,19 @@ All `device` endpoints are scoped to the token's `patient_id`. All `caregiver` e
 | 403 | `PATIENT_SUSPENDED` | Write to a suspended patient (D-056) |
 | 404 | `NOT_FOUND` | Also returned for resources outside caller scope (no existence leak) |
 | 409 | `PATIENT_LIMIT_REACHED` | Quota (D-053) |
+| 409 | `SELF_PROFILE_EXISTS` | Second active self profile (D-092) |
+| 409 | `PATIENT_ARCHIVED` | Edit or pair an archived patient; reactivate first |
+| 409 | `MEDICINE_ARCHIVED` | Edit an archived medicine |
 | 409 | `DEVICE_LIMIT_REACHED` | 3 active devices (D-018, [D-084](01-decisions.md#d-084-pairing-limits-device-limit-and-code-lookup)) |
 | 409 | `IDEMPOTENCY_KEY_REUSED` | See above |
+| 409 | `REQUEST_IN_PROGRESS` | Same key, first request still running (`Retry-After: 1`) |
 | 410 | `CODE_EXPIRED_OR_USED` | Pairing/transfer code expired, used, superseded or locked |
 | 422 | `CODE_INVALID` | Wrong code (counts toward lock and rate limit) |
 | 426 | `UPGRADE_REQUIRED` | App below minimum version (`X-App-Version` header) |
 | 429 | `RATE_LIMITED` | `Retry-After` header set |
+| 500 | `INTERNAL` | Unexpected error. Generic message; details only in server logs, which never hold request bodies |
+
+Plain framework errors (unknown route, malformed JSON) use the same format with generic messages. Codes and statuses live in `@med/shared` (`ERROR_STATUS`).
 
 Every request from the app sends `X-App-Version` and `X-Platform`.
 
@@ -60,7 +75,16 @@ Cursor-based: `?cursor=<opaque>&limit=<1..100>` → `{ "items": [...], "next_cur
 | `POST /v1/auth/refresh` | none (refresh token in body) | `{ refresh_token }` | `200 { access_token, refresh_token }`. `401 SESSION_REPLACED` if the session was superseded |
 | `POST /v1/auth/logout` | caregiver | — | `204`. Revokes the session and the caregiver device row; the self-profile device on this phone is revoked too and its alarms cancelled ([D-083](01-decisions.md#d-083-sign-out-endpoint-and-idempotency-retention)) |
 
-`DeviceInfo = { platform, app_version, label, push_token?, tz }`
+`DeviceInfo = { platform, app_version, label?, push_token?, tz? }`. For `pairing/redeem` it also carries `install_id` (a random ID the app makes on first launch; it keys the per-install rate limit and lets re-pairing replace the old device row).
+
+**Implementation** (`apps/api/src/auth/`):
+- **Access token:** HS256 JWT, 15 minutes, claims `sub` (user), `sid` (session), issuer and audience checked. The guard also loads the session on every request, so a replaced or signed-out phone is refused at once: `SESSION_REPLACED` if another phone took over, `UNAUTHENTICATED` after logout. Every route is deny-by-default unless marked `@Public()`.
+- **Refresh token:** 32 random bytes, only an HMAC is stored, rotated on every use (the old one stops working). A session unused for 90 days expires. Refreshing a replaced session gives `SESSION_REPLACED`.
+- **Passwords:** NFKC-normalised, then Argon2id (m = 19 MiB, t = 2, p = 1) with the pepper as Argon2's secret input. 8–128 characters counted as Unicode code points. An unknown email runs the same Argon2 check against a dummy hash.
+- **Throttling** (Redis, so losing it only resets counters). These numbers are suggestions, not decisions:
+  - **Per account:** keyed by the email address, so unknown emails behave identically. Every attempt is counted atomically. The first 5 are free, then the delay is 30 s, doubling to a 15 minute cap; a delay blocks even the right password. A successful sign-in resets it; the count is forgotten after an hour without attempts.
+  - **Per IP:** 30 sign-in attempts per 10 minutes, 10 registrations per hour. Behind a proxy the app must set `trust proxy` so `req.ip` is the client.
+- **Sign-in on a new phone** also (a) queues "You were signed in on another phone" for the phone it signed out (kind `pairing`, event `signed_in_elsewhere`; sent to that revoked device on purpose; skipped when the push token is the same phone's), and (b) moves the self profile's device: the old self-profile device is revoked and a new token comes back as `self_profile_device_token` (only when the caregiver has an active or suspended self profile). Logout revokes the self-profile device too (D-083).
 
 Emails are trimmed and lower-cased. Passwords are never logged or echoed.
 
@@ -83,6 +107,15 @@ A successful sign-in revokes any previous active session and caregiver device ro
 
 `Patient = { id, display_name, type, timezone, tz_mode, missed_delay_min, lockscreen_detail, status, devices: DeviceSummary[], created_at }`
 
+**Implementation** (`apps/api/src/patients/`):
+- **Scoping:** the caregiver is always the signed-in user. The path ID only picks one of *their* patients: every repository method takes the owner and puts it in the `WHERE`. A patient that belongs to someone else, doesn't exist, or has a malformed ID all return the same `404 NOT_FOUND`.
+- **Create:** managed → quota check; self → needs an active subscription, one per caregiver (`SELF_PROFILE_EXISTS`), no slot used. `tz_mode` defaults to `follow_device`. `display_name` is 1–80 characters and is stored encrypted. `timezone` must be an IANA name (`Asia/Kolkata`, `UTC`; abbreviations like `EST` are rejected). `missed_delay_min` is a whole number from 1 to 1440 (the cap is a suggestion).
+- **Update:** unknown fields are rejected (`type`, `status` and `owner_user_id` can't be changed), `null` clears `missed_delay_min` or `lockscreen_detail` back to the caregiver default, and an empty body is `400`. Suspended → `403 PATIENT_SUSPENDED`; archived → `409 PATIENT_ARCHIVED`. The audit row lists changed field names only. Regenerating future doses (D-040) and recomputing `alert_due_at` (D-086) come with dose generation in Phase 2.
+- **Archive:** one transaction. Status `archived`, active devices revoked (audited as `device.revoked`), future `pending` doses deleted (answered and past doses stay), live pairing codes invalidated. Repeating it changes nothing. Works from `active` and `suspended`.
+- **Reactivate:** only from `archived`; quota check for managed, subscription and one-self check for self. A `suspended` patient is `403 PATIENT_SUSPENDED`: only renewal restores them (07).
+- **Lock order** is subscription row, then patient row, everywhere, so create, archive and reactivate can't deadlock.
+- **`DeviceSummary`** has no `healthy` / `problems` yet; those come with the device-health job (Phase 4). The list has active devices only.
+
 ## Pairing
 
 | Method & path | Auth | Request | Response / notes |
@@ -92,6 +125,8 @@ A successful sign-in revokes any previous active session and caregiver device ro
 | `POST /v1/pairing/redeem` | none | `{ code, device: DeviceInfo, attestation?: { platform, token \| key_id + attestation_object, challenge }, consent: { notice_version } }` | `201 { device_id, device_token, patient: { id, display_name, timezone } }`. Errors: `CODE_INVALID`, `CODE_EXPIRED_OR_USED`, `DEVICE_LIMIT_REACHED`, `RATE_LIMITED` |
 
 Full rules: [06-pairing-and-devices](06-pairing-and-devices.md#pairing).
+
+**Implementation** (`apps/api/src/pairing/`, `devices/`, `app-config/`): redeem locks in the order subscription → patient → code, so it can't deadlock with code generation. Attestation is accepted and recorded as `provided_unverified` in the audit row (log-only, D-013); the challenge is a stateless signed nonce. A device token is looked up by keyed hash; the first call from a revoked phone alerts the caregiver (kind `pairing`, once per 12 h). Credentials: caregiver `Bearer` by default, `@DeviceAuth()` / `@AnyAuth()` per route. The global rate limit of 300 redeems per minute is a suggestion. `X-App-Version` below the minimum gets `426`, except `app/config`, `devices/heartbeat` and `device/dose-responses`; requests without the headers are not checked. `devices/heartbeat` sets `sync_needed` when the phone's `scheduled_through` is under 48 hours away or missing, and moves a `follow_device` patient to the reporting phone's timezone (D-086).
 
 ## Devices
 
@@ -136,6 +171,8 @@ Full rules: [06-pairing-and-devices](06-pairing-and-devices.md#pairing).
 }
 ```
 
+**Implementation** (`apps/api/src/medicines/`, `doses/`, `settings/`): every lookup goes medicine → patient → owner (other caregivers get `404`); lock order is patient, then medicine. *Any* `PATCH` closes the open schedule version and opens a new one effective now (copying the old schedule when it was not sent, `start_date` included, so an `every_n_days` cycle never shifts), deletes future `pending` doses of that medicine, and regenerates, so name snapshots and delays are always current. `null` clears `notes`, `photo_object_key` and `missed_delay_min`. Editing an archived medicine is `409 MEDICINE_ARCHIVED`. `photo_object_key` must be `p/{patientId}/m/{id}.jpg` for that patient. A patient's timezone change, delay change and reactivation rebuild or recompute doses the same way; a changed default delay (`PATCH /v1/settings`) recomputes `alert_due_at` for pending doses still in the future (D-086).
+
 ## Uploads
 
 | Method & path | Auth | Request | Response / notes |
@@ -177,6 +214,11 @@ The device replaces its whole scheduled set with the issued window: it cancels a
 
 Rules: [05-reminder-engine](05-reminder-engine.md#answers-and-sync).
 
+**Implementation** (`apps/api/src/device-sync/`):
+- **Sync** returns the whole issued window every time. The `cursor` is an opaque fingerprint the phone may store; it is not needed to resume. Window: Android 5 days; iOS `⌊60 ÷ slots per day⌋`, at least 2, at most 14 (`window.ts`, with the examples from 05 as tests). Doses from the last 24 h are included so the Today screen shows recent answers. A suspended patient gets `account_state: suspended`, `commands: ["cancel_all"]` and nothing else; during grace the window ends at `cutoff_at` (D-087). Photo read URLs are issued per sync and audited as one `photo.read_url_issued` row listing medicine IDs.
+- **`dose-responses`** is exempt from `Idempotency-Key` (idempotent per item by `client_event_id`, and always accepted from old builds, D-080). Each item runs in its own transaction with the dose row locked; a dose of another patient is `rejected` as if it did not exist. Earliest `responded_at` wins after clamping, a tie goes to the first to arrive; Snooze is refused within 10 minutes of the deadline and never moves `alert_due_at`. `not_taken` sets `alert_sent_at` so no missed alert follows. A late answer to a `missed` dose sends one `correction`. Self profiles get no `not_taken` or `correction` push to themselves. After a Taken or Not taken answer, the patient's other phones get a queued `sync` data push (kind `sync`, with the dose ID) to clear the dose.
+- The push sender that delivers the queued `notification_log` rows is a separate piece (below).
+
 ## History and adherence
 
 | Method & path | Auth | Request | Response |
@@ -185,12 +227,16 @@ Rules: [05-reminder-engine](05-reminder-engine.md#answers-and-sync).
 | `GET /v1/patients/{patientId}/adherence` | caregiver | `?from=&to=&group_by=day\|medicine` | `200 { buckets: [{ key, taken, not_taken, missed, pending }] }` |
 | `GET /v1/patients/{patientId}/audit-log` | caregiver | `?cursor=` | `200 { items: AuditEntry[], next_cursor }` (D-066) |
 
+**Implementation** (`apps/api/src/history/`): lists are newest first with keyset cursors (`next_cursor` is opaque; a bad one is `400`). `doses` defaults to the last 30 days through the next 14 and takes `limit` 1–100 (default 50). `adherence` groups `day` by the *patient's* local date (default) or `medicine`; snoozed doses count as `pending`. All three are read-only and work for suspended patients; the audit log shows only that patient's rows to its current owner.
+
 ## Transfer
 
 | Method & path | Auth | Request | Response / notes |
 | --- | --- | --- | --- |
 | `POST /v1/patients/{patientId}/transfer-code` | caregiver (owner) | — | `201 { code, qr_payload, expires_at }`. Same format and lifetime as pairing codes, kind `transfer` |
 | `POST /v1/transfers/redeem` | caregiver (receiver) | `{ code, as_self: boolean }` | `200 Patient`. Quota check for `managed`. `as_self: true` makes it the receiver's self profile (D-050). Both sides audited |
+
+**Implementation** (`apps/api/src/transfer/`): `transfers/redeem` is exempt from `Idempotency-Key` (D-098) and limited to 10 attempts a minute per receiver. Locks are taken in the order receiver's subscription, patient, code. Only `owner_user_id` (and `type` when `as_self`) changes, so medicines, schedule versions, dose history, phones and device tokens stay as they are, and `alert_due_at` on existing doses is not touched. Any pairing code the old owner made earlier is cancelled. Both sides get a `transfer.redeemed` audit row (`role: sender | receiver`) in the patient's log, so the new owner can read it. Your own patient's code, a wrong code, a used code and a `pair` code all fail (`CODE_INVALID` or `CODE_EXPIRED_OR_USED`). A suspended patient can't be transferred.
 
 ## Settings
 
@@ -203,9 +249,11 @@ Rules: [05-reminder-engine](05-reminder-engine.md#answers-and-sync).
 
 | Method & path | Auth | Request | Response / notes |
 | --- | --- | --- | --- |
-| `GET /v1/subscription` | caregiver | — | `200 { plan, patient_limit, managed_patients, status, renews_at, expired_at, cutoff_at }` |
+| `GET /v1/subscription` | caregiver | — | `200 { plan, patient_limit, managed_patients, status, renews_at, expired_at, cutoff_at }`. With no subscription: `plan: null`, `status: null`, `patient_limit: 0` (the app shows the paywall). `managed_patients` counts active managed patients only |
 | `POST /v1/subscription/refresh` | caregiver | — | `200 Subscription`. Re-fetches from RevenueCat after a purchase or restore |
 | `POST /v1/webhooks/revenuecat` | webhook | RevenueCat event | `200` fast; processed async, deduped by event `id` ([07](07-subscriptions-and-billing.md#revenuecat-webhooks)) |
+
+**Implementation** (`apps/api/src/billing/`): the webhook only verifies the `Authorization` header (constant-time; nothing is accepted if `REVENUECAT_WEBHOOK_AUTH` is not set), records the event in `rc_webhook_events` and returns `200`. The worker (`rc-events`, every 10 s) then re-reads the customer's active entitlements from RevenueCat API v2 and applies the state machine from 07, so the event body is never trusted for state. `REVENUECAT_PLAN_MAP` (JSON, entitlement ID → plan) maps entitlements; with none active the 1-day grace starts, and a renewal restores suspended patients, rebuilds their doses and queues a `sync` push. `BILLING_ISSUE` with access still granted is `store_grace`. SANDBOX events are ignored in production. `rc-reconcile` runs daily at 04:00 UTC over live accounts and those expired in the last 90 days, paced under 480 requests a minute. With no RevenueCat key (development) every sync is a no-op, so the dev Starter stub is left alone; production refuses to start without the key.
 
 ## Privacy
 
@@ -213,6 +261,10 @@ Rules: [05-reminder-engine](05-reminder-engine.md#answers-and-sync).
 | --- | --- | --- | --- |
 | `POST /v1/me/export` | caregiver | — | `202 { request_id }`. The export is delivered in-app as a short-lived download link (D-067) |
 | `POST /v1/me/delete` | caregiver | `{ confirm: "DELETE", password }` | `202`. In-app account deletion ([D-081](01-decisions.md#d-081-in-app-account-deletion)); retention per [C-10](01-decisions.md#c-10-dpdp-act-and-rules--owner--legal-counsel-review-before-phase-5) |
+
+**Implementation** (`apps/api/src/privacy/`):
+- **Export:** `POST /v1/me/export` builds the JSON export of the caller's account, settings, consents and every patient they own (medicines, schedules, dose history, phones, activity), decrypted, with no password hash, token hash or push token. It is stored privately as `exports/{userId}/{requestId}.json`. `GET /v1/me/export/{requestId}` (added) returns a 15-minute signed download link, only to the person it belongs to. Three exports a day. Add an R2 lifecycle rule to expire `exports/`.
+- **Deletion:** needs `{ confirm: "DELETE", password }`. The password is checked with the same progressive delay as sign-in, so a stolen session can't guess it here. In one transaction it deletes patients, medicines, schedules, doses, phones, pairing codes, sessions and settings, then removes the photos after commit. `audit_log` and `notification_log` rows stay for the legal minimum (Rule 8(3), C-10), with their links to patients, phones and doses removed and `notification_log.data` cleared; consent and billing records stay. The user row is anonymised in place (`deleted-{id}@deleted.invalid`, `deleted_at` set), which frees the email address. **Not done:** deleting the customer in RevenueCat and clearing already-sent Sentry data. Retention for the logs is provisional until the C-10 legal review.
 
 ## App config
 

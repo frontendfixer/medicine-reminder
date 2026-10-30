@@ -1,0 +1,37 @@
+# Local dev services. Host ports are non-default so they don't clash with other projects.
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: med
+      POSTGRES_PASSWORD: med
+      POSTGRES_DB: med
+    ports:
+      - '127.0.0.1:5442:5432'
+    volumes:
+      # PostgreSQL 18 images keep PGDATA in a version subdirectory, so mount the parent.
+      - pgdata:/var/lib/postgresql
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U med -d med']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    # BullMQ: AOF persistence and noeviction (docs/02-architecture.md, R-17).
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction']
+    ports:
+      - '127.0.0.1:6389:6379'
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
+  redisdata:

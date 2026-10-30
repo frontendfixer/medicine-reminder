@@ -1,0 +1,2 @@
+ALTER TABLE "devices" ADD COLUMN "install_id" text;--> statement-breakpoint
+CREATE INDEX "devices_install_idx" ON "devices" USING btree ("patient_id","install_id") WHERE "devices"."revoked_at" is null;

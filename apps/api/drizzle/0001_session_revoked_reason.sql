@@ -1,0 +1,2 @@
+ALTER TABLE "auth_sessions" ADD COLUMN "revoked_reason" text;--> statement-breakpoint
+ALTER TABLE "auth_sessions" ADD CONSTRAINT "auth_sessions_revoked_reason" CHECK (("auth_sessions"."revoked_at" is null) = ("auth_sessions"."revoked_reason" is null) and ("auth_sessions"."revoked_reason" is null or "auth_sessions"."revoked_reason" in ('logout','replaced')));

@@ -6,6 +6,25 @@ Every phase starts by re-reading the official docs for the libraries it touches 
 
 ---
 
+## Backend status (2026-10-30)
+
+Per [D-098](01-decisions.md#d-098-backend-built-in-one-pass-caller-less-redeem-routes-are-exempt-from-idempotency-key) the whole API in [04](04-api.md) and the jobs in [05](05-reminder-engine.md), [07](07-subscriptions-and-billing.md) and [09](09-missed-dose-alerts.md) are built. Every documented route is served (checked against the app's own route table), and CI runs the unit tests, the integration tests on real PostgreSQL 18 and Redis 8, and the isolation matrix.
+
+**What the ticks below do and do not mean.** A ticked item is built and tested against fakes or real local services. **No exit gate has passed.** Still open, and not something more code can close:
+
+| Open | Why |
+| --- | --- |
+| Phase 1 gate: a real phone pairs and a revoked device is refused | Needs the mobile app |
+| Phase 3 gate: test doses fire on a locked, idle Android phone, online and offline, overnight | Needs the mobile app and a phone; D-097 checklist |
+| Live calls to R2, Expo Push, RevenueCat and Sentry | Need your credentials. Tested against fakes; `S3ObjectStorage`, `ExpoPushTransport` and `HttpRevenueCatClient` have not touched the real services |
+| Play Integrity / App Attest verification | Log-only; the token is recorded, not verified (D-013) |
+| GitHub Actions workflow | Written and syntax-checked; never run on GitHub |
+| OI-01 plans and prices, OI-19 grievance contact, C-10 legal review, OI-29 iOS checks | Owner or counsel decisions |
+| Mobile app, push permission onboarding UI, i18n lint rule, store listings, restore drill, OEM checks, beta | Phases 3 and 5 |
+| Not built | Patient-side "Stop sharing" (unpair), dashboards (the sweeper logs its results; no metrics endpoint), RevenueCat customer deletion on account deletion, orphaned-photo cleanup sweep, HMAC signature check on the RevenueCat webhook (RevenueCat documents only the Authorization header) |
+
+---
+
 ## Phase 0 — dropped ([D-097](01-decisions.md#d-097-no-phase-0-spike-fewer-tests-reliability-checked-in-phase-3))
 
 The reminder spike is removed; work starts at Phase 1. Its reliability checks moved to Phase 3, and its docs re-check is done (2026-10-28: R-02, R-03, R-49–R-55; no notification/alarm changes in Android 16/17, none listed by Apple for iOS 26).
@@ -18,29 +37,29 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 
 **Depends on:** [02](02-architecture.md), [03](03-data-model.md), [04 auth/patients/pairing/devices](04-api.md), [06](06-pairing-and-devices.md), [07 quota](07-subscriptions-and-billing.md#quota-enforcement), [10](10-security-privacy.md). **Implements:** D-071, D-080, D-082, D-083, D-084, D-089, D-092, D-095, D-096.
 
-- [ ] Monorepo: `apps/mobile` (Expo SDK 58), `apps/api` (NestJS 12, Node 26 LTS), shared types
-- [ ] Re-check NestJS, Drizzle, BullMQ, Redis minimum version docs; record in references
-- [ ] Postgres 18 + Drizzle schema and migrations for all tables in [03](03-data-model.md) (including the D-082 additions)
-- [ ] Field-level encryption helper + key management
-- [ ] Idempotency-Key interceptor + `idempotency_keys` table
-- [ ] Error format and codes per [04](04-api.md#errors)
-- [ ] Auth: email + password register/login (Argon2id + pepper, 8–128 chars, generic errors, per-account and per-IP throttling), refresh rotation, logout (D-095)
-- [ ] One active caregiver login: session replacement + "signed in elsewhere" notice
-- [ ] `caregiver_settings` with defaults (30 min, full, false)
-- [ ] Subscriptions table + server-side entitlement check stub; Starter = 3
-- [ ] Patients CRUD + archive/reactivate with quota check under row lock
-- [ ] Self profile creation (one per caregiver; subscription required)
-- [ ] Pairing code generation (31-symbol alphabet, `XXXX-XXXX`, QR), 10 min, single use, supersede, hash only
-- [ ] Redeem transaction with 5-attempt lock, rate limits (IP/device/global), device limit 3
-- [ ] Optional attestation via `@expo/app-integrity` in log-only mode
-- [ ] Device token issue/hash/rotate; `Device` auth guard; revoke endpoint
+- [x] Monorepo: `apps/mobile` (Expo SDK 58), `apps/api` (NestJS 12, Node 26 LTS), shared types (pnpm workspace, `packages/shared`; 2026-10-30)
+- [x] Re-check NestJS, Drizzle, BullMQ, Redis minimum version docs; record in references (2026-10-30: R-56–R-60)
+- [x] Postgres 18 + Drizzle schema and migrations for all tables in [03](03-data-model.md) (including the D-082 additions; `otp_challenges` skipped, v1.1) (2026-10-30)
+- [x] Field-level encryption helper + key management (env keys from the secret manager, rotation by key ID; cloud KMS wrapping waits for the hosting choice) (2026-10-30)
+- [x] Idempotency-Key interceptor + `idempotency_keys` table (2026-10-30; exemptions for caller-less routes: OI-30)
+- [x] Error format and codes per [04](04-api.md#errors) (`ApiException` + global filter; codes in `@med/shared`) (2026-10-30)
+- [x] Auth: email + password register/login (Argon2id + pepper, 8–128 chars, generic errors, per-account and per-IP throttling), refresh rotation, logout (D-095) (2026-10-30)
+- [x] One active caregiver login: session replacement; `SESSION_REPLACED` on the old phone, the "signed in elsewhere" push, and the self-profile device moving with the login (2026-10-30)
+- [x] `caregiver_settings` with defaults (30 min, full, false), created at register (2026-10-30)
+- [x] Subscriptions table + server-side entitlement check stub; Starter = 3 (`EntitlementsService`, `GET /v1/subscription`, dev-only Starter grant; 2026-10-30)
+- [x] Patients CRUD + archive/reactivate with quota check under row lock (patient changes are audited; 2026-10-30)
+- [x] Self profile creation (one per caregiver; subscription required) via `POST /v1/patients` with `type: self` (2026-10-30; its own device comes with pairing)
+- [x] Pairing code generation (31-symbol alphabet, `XXXX-XXXX`, QR payload), 10 min, single use, supersede, hash only (2026-10-30)
+- [x] Redeem transaction with 5-attempt lock, rate limits (IP/install/global), device limit 3 (2026-10-30)
+- [x] Optional attestation, log-only: challenge issued, token recorded as `provided_unverified`; real verification needs Google/Apple credentials (2026-10-30)
+- [x] Device token issue/hash/rotate (re-pair); `Device` auth guard; revoke endpoint (2026-10-30)
 - [ ] Patient app: scan/type code, consent screen, secure-store token (`AFTER_FIRST_UNLOCK`), rejected-token screen
 - [ ] Caregiver app: generate code screen, "Patient connected on …", Revoke, Re-pair
-- [ ] Audit log writes for pairing, revoke, patient changes
-- [ ] Isolation test harness (route matrix) in CI
+- [x] Audit log writes for pairing, revoke, patient changes (and medicines, transfer, billing, settings, export, deletion) (2026-10-30)
+- [x] Isolation test harness (route matrix) in CI (`isolation.int-spec.ts` + `.github/workflows/ci.yml`; the workflow has not run on GitHub yet) (2026-10-30)
 - [ ] i18n setup: all strings in `en` translation files; lint rule for raw strings
-- [ ] Sentry in app and API with scrubbing + a test asserting no PII in events
-- [ ] `GET /v1/app/config` with minimum version
+- [~] Sentry in the API with scrubbing + an end-to-end test asserting no PII in events (2026-10-30); the app side is app work
+- [x] `GET /v1/app/config` with minimum version, plus the `426` guard (2026-10-30)
 
 **Exit gate:** a real phone pairs with a code and a revoked device is refused.
 > Gate result: _not run_
@@ -53,16 +72,16 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 
 **Depends on:** [03](03-data-model.md), [04 medicines/uploads/history](04-api.md#medicines), [05 dose generation](05-reminder-engine.md#dose-generation), [10 photos](10-security-privacy.md#photos). **Implements:** D-082, D-086, D-091.
 
-- [ ] Medicine create/update/archive; update closes version, opens new effective now
-- [ ] Schedule patterns: daily, weekdays, every N days; multiple times with own amount; start/end date
-- [ ] Name/amount snapshots on doses; archive never deletes
-- [ ] Photo: pick, resize/compress, EXIF removal verified, presign `PUT` to private R2, server `HEAD` check, size cap
-- [ ] Signed read URLs for owner and paired devices only; access audited
-- [ ] Dose generator Job Scheduler (daily) + on-demand regeneration (edit, archive, tz change)
-- [ ] `alert_due_at` frozen at generation via delay resolution medicine → patient → default
-- [ ] History and adherence endpoints (read-only for suspended)
+- [x] Medicine create/update/archive; update closes version, opens new effective now (2026-10-30)
+- [x] Schedule patterns: daily, weekdays, every N days; multiple times with own amount; start/end date (2026-10-30)
+- [x] Name/amount snapshots on doses; archive never deletes (2026-10-30)
+- [x] Photo (server side): presign `PUT` to private R2, server `HEAD` check, 1 MB cap, EXIF marker check (2026-10-30; the phone-side resize is app work, and the live R2 calls are untested without credentials)
+- [x] Signed read URLs for owner and paired devices only; access audited (2026-10-30)
+- [x] Dose generator Job Scheduler (daily) + on-demand regeneration (edit, archive, tz change; synchronous in the same transaction) (2026-10-30)
+- [x] `alert_due_at` frozen at generation via delay resolution medicine → patient → default; recomputed for future pending doses on a delay change (2026-10-30)
+- [x] History and adherence endpoints (read-only for suspended), plus the audit-log read (2026-10-30)
 - [ ] Caregiver UI: medicine list/form, schedule editor, photo, history
-- [ ] Property tests across timezones and DST ([12](12-testing-and-slos.md#dose-generation-tests))
+- [x] Property tests across timezones and DST ([12](12-testing-and-slos.md#dose-generation-tests)) (2026-10-30; found and fixed a gap-boundary bug)
 
 **Exit gate:** generated doses match the schedule across timezones and DST.
 > Gate result: _not run_
@@ -75,18 +94,18 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 
 **Depends on:** [05](05-reminder-engine.md), [08](08-notifications-and-platform.md), [04 device sync](04-api.md#device-sync-and-answers). **Implements:** D-072, D-075, D-076, D-077, D-078, D-079, D-085, D-086, D-093, D-094.
 
-- [ ] `GET /v1/device/sync` with cursor, window sizing per platform, photo URLs, `account_state`, `commands`
+- [x] `GET /v1/device/sync` with cursor, window sizing per platform, photo URLs, `account_state`, `commands` (2026-10-30)
 - [ ] Phone scheduler: budget allocator across profiles, reconcile by dose ID, `scheduled_through`
 - [ ] Notification types → channels / interruption levels; lock-screen detail full/generic
 - [ ] Mandatory guided permission onboarding; skipped permissions reported
-- [ ] Heartbeat on open, background task and sync; device fields updated
+- [x] Heartbeat endpoint and device fields updated (the phone-side triggers are app work) (2026-10-30)
 - [ ] Today screen: large buttons, photo, amount; works without notification permission
 - [ ] Lock-screen actions → SQLite outbox → batch `dose-responses` with `client_event_id`
-- [ ] Server answer rules: earliest wins, snooze limits, corrections hook, `dose_cleared` data push
-- [ ] Sweeper Pass A: conditional backup push with outbox in `notification_log`
-- [ ] Expo push sender (chunks ≤ 100, backoff) + receipts job (`DeviceNotRegistered` handling)
+- [x] Server answer rules: earliest wins, snooze limits, corrections, `dose_cleared` data push queued (2026-10-30; delivery needs the push sender)
+- [x] Sweeper Pass A: conditional backup push with outbox in `notification_log` (2026-10-30)
+- [x] Expo push sender (chunks ≤ 100, backoff) + receipts job (`DeviceNotRegistered` handling) (2026-10-30; live Expo calls untested without a token)
 - [ ] Refill: app open, `expo-background-task`, Android data push; visible push when window < 24 h
-- [ ] Timezone follow-device: regenerate + caregiver notice
+- [x] Timezone follow-device: regenerate (done) + caregiver notice (queued by the heartbeat) (2026-10-30)
 - [ ] Reliability checks on one real Android phone, app killed, build from EAS (formerly Phase 0, D-097):
   - Lock-screen Taken / Not taken / Snooze are saved with the app killed (`registerTaskAsync`, D-076), then sent on the next network
   - Alarm follow-ups every 5 min with `delivery: 'alarmClock'` in forced Doze (`adb shell dumpsys deviceidle force-idle`); also check whether Standard/Gentle need it for doses within 9 min (D-072)
@@ -107,18 +126,18 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 
 **Depends on:** [09](09-missed-dose-alerts.md), [07](07-subscriptions-and-billing.md), [06 transfer](06-pairing-and-devices.md#transfer). **Resolve first:** OI-01 (plans, prices, trial). **Implements:** D-082, D-087, D-092, D-093.
 
-- [ ] Sweeper Pass B: missed alerts at `alert_due_at`, mark `missed` + `alert_sent_at` in one transaction
-- [ ] Grouping within 15 min via `group_key` / collapse ID
-- [ ] Not taken immediate alert; corrections for late answers; self profile once-only rule
-- [ ] Device-health job: 6 h heartbeat, permissions, window < 24 h, invalid push token; 12 h throttle
-- [ ] Transfer code + redeem (quota, `as_self`), everything moves intact, both sides audited
-- [ ] RevenueCat SDK in app; paywall; `subscription/refresh`
-- [ ] Webhook endpoint: auth header/HMAC, event-ID dedupe, async re-fetch via API v2
-- [ ] Daily reconciliation job
+- [x] Sweeper Pass B: missed alerts at `alert_due_at`, mark `missed` + `alert_sent_at` in one transaction (2026-10-30)
+- [x] Grouping within 15 min via `group_key` / collapse ID (2026-10-30)
+- [x] Not taken immediate alert; corrections for late answers; self profile once-only rule (2026-10-30)
+- [x] Device-health job: 6 h heartbeat, permissions, window < 24 h, invalid push token; 12 h throttle (2026-10-30)
+- [x] Transfer code + redeem (quota, `as_self`), everything moves intact, both sides audited (2026-10-30)
+- [~] `subscription/refresh` done server-side (2026-10-30); the SDK and paywall are app work
+- [x] Webhook endpoint: auth header, event-ID dedupe, async re-fetch via API v2 (HMAC signature not implemented: the docs describe only the Authorization header) (2026-10-30; live RevenueCat calls untested without a key)
+- [x] Daily reconciliation job (2026-10-30)
 - [ ] Store grace periods enabled in Play Console and App Store Connect
-- [ ] 1-day grace: warnings at expiry and −6 h; patient banner
-- [ ] Cutoff (sweeper Pass C): suspend patients + self profile, `cancel_all`, "Reminders paused"
-- [ ] Suspended read-only enforcement; renewal restore + re-sync within a minute
+- [x] 1-day grace: warnings at expiry and −6 h; patient banner (`account_state: grace` in sync) (2026-10-30)
+- [x] Cutoff (sweeper Pass C): suspend patients + self profile, `cancel_all`, "Reminders paused"; 6-hour warning (2026-10-30)
+- [x] Suspended read-only enforcement; renewal restore + re-sync push queued (2026-10-30)
 - [ ] Dashboards: sweeper lag, push receipts, device health ([14](14-release-and-ops.md#monitoring))
 
 **Exit gate:** a missed dose alerts the caregiver once, at the configured delay.
@@ -136,7 +155,7 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 - [ ] OEM battery checks on the beta group's own phones (Samsung, Xiaomi/Oppo if present) + OEM guidance screens
 - [ ] Security review: auth, pairing abuse, isolation, scrubbing, secrets, dependency audit
 - [ ] PITR restore drill passed ([14](14-release-and-ops.md#restore-drill))
-- [ ] DPDP: consent flows, notice, export, in-app deletion, grievance contact, retention rules; legal review sign-off (C-10)
+- [~] DPDP, server side: consents stored, export and in-app deletion done (2026-10-30); notice text, grievance contact (OI-19), retention rules and legal sign-off (C-10) are still open
 - [ ] Disclaimer screens (reminder tool, not medical advice; consult a doctor)
 - [ ] Store listings, privacy policy, Play Data safety, Health apps declaration, App Store privacy details
 - [ ] Play exact-alarm justification (D-073); OEM battery guidance screens (D-074)

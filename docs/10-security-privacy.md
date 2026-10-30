@@ -22,21 +22,27 @@ Decisions: [D-066](01-decisions.md#d-066-security-baseline), [D-067](01-decision
 | Isolation | See below |
 | Audit log | See below |
 | Secrets | Secret manager for: JWT signing keys, HMAC pepper, password pepper, field-encryption keys, R2 keys, RevenueCat secret + webhook auth, Expo access token. Rotatable |
-| Auth hardening | Email + password ([D-095](01-decisions.md#d-095-caregiver-sign-in-is-email--password-in-v1)): Argon2id (m = 19 MiB, t = 2, p = 1) with a pepper ([R-47](references.md)); 8–128 characters ([D-096](01-decisions.md#d-096-8-character-password-minimum-no-password-reset-in-v1); shorter than OWASP's 15 for non-MFA accounts), no composition rules, no truncation ([R-48](references.md)); no password reset, change or breach check in v1; generic login errors with constant timing; per-account progressive throttling + per-IP limits, no hard lockout; password re-entry for account deletion. Short-lived access JWTs; rotating refresh tokens bound to one session. Passwords never logged (Sentry deny-list includes `password`) |
+| Auth hardening | Email + password ([D-095](01-decisions.md#d-095-caregiver-sign-in-is-email--password-in-v1)): Argon2id (m = 19 MiB, t = 2, p = 1) with a pepper ([R-47](references.md)); 8–128 characters ([D-096](01-decisions.md#d-096-8-character-password-minimum-no-password-reset-in-v1); shorter than OWASP's 15 for non-MFA accounts), no composition rules, no truncation ([R-48](references.md)); no password reset, change or breach check in v1; generic login errors with constant timing; per-account progressive throttling + per-IP limits, no hard lockout; password re-entry for account deletion. Short-lived access JWTs; rotating refresh tokens bound to one session. Passwords never logged (Sentry deny-list includes `password`). **Pepper risk:** `PASSWORD_PEPPER` is not stored with the hashes, and v1 has no reset, so losing it locks every caregiver out for good. Keep it in the secret manager with a backup; changing it requires re-hashing at login (not built) |
 | Abuse | Pairing limits and attestation ([06](06-pairing-and-devices.md#abuse-controls)); per-principal rate limits on all writes |
 | Push security | Expo Push access token ("enhanced security") enabled ([D-090](01-decisions.md#d-090-expo-push-access-token)) |
 | Dependencies | Lockfiles, automated advisories, versions re-checked per [CLAUDE.md](../CLAUDE.md) |
 | On-device | Device token and refresh token in `expo-secure-store`. SQLite holds cached medicine data; consider SQLCipher (`useSQLCipher`, [R-05](references.md)) (suggestion, not decided) |
 
 ### Field-level encryption
-- Encrypted columns: `medicines.name`, `medicines.notes`, `dose_instances.name_snapshot`, `patients.display_name` (D-082).
+- Encrypted columns: `medicines.name`, `medicines.notes`, `dose_instances.name_snapshot`, `patients.display_name` (D-082), and `idempotency_keys.response_body` (cached responses can contain medicine names).
 - AES-256-GCM with a per-row random nonce. A data key (DEK) is wrapped by a key in the cloud KMS / secret manager. The key ID is stored with the ciphertext (`v1:<kid>:<nonce>:<ct>`) to allow rotation.
+- Implementation (`apps/api/src/crypto/field-encryption.ts`):
+  - 96-bit random IV per value and a 128-bit tag ([R-63](references.md)). A key can encrypt about 2³² values before it must be retired (NIST SP 800-38D 8.3), which rotation covers at this scale.
+  - The AAD is `v1:<kid>:<table.column>`, so a ciphertext copied to another column, or with an edited key ID, fails to decrypt. Because the snapshot is a separate column, `dose_instances.name_snapshot` is decrypted from `medicines.name` and re-encrypted under its own field.
+  - Stored in the `bytea` column as the UTF-8 bytes of `v1:<kid>:<iv>:<ciphertext‖tag>` (base64url parts).
+  - Keys come from the secret manager as `FIELD_ENCRYPTION_KEYS=kid:base64,…` with `FIELD_ENCRYPTION_ACTIVE_KID`. Old key IDs stay in the set while any value still uses them; `isCurrent()` finds values to re-encrypt. Wrapping the keys with a cloud KMS is not done yet, because the hosting provider is not chosen.
+  - Errors never contain plaintext, keys or ciphertext.
 - Decryption happens only in the API process, just before serialising responses to an authorised principal.
 - Consequence: no SQL search or sort on these fields. Sorting by name happens in the app.
 
 ### Isolation
 - Every caregiver query is scoped by `patients.owner_user_id = :callerId`. Every device query is scoped by the token's `patient_id`. Enforced in a repository layer that requires a scope argument; no unscoped repository methods.
-- Out-of-scope resources return `404`, not `403`.
+- Out-of-scope resources return `404`, not `403`. Implemented for patients in `PatientsRepository` (`apps/api/src/patients/`): the owner is a required argument of every method, and the same `404` covers "not yours", "doesn't exist" and "not a UUID".
 - **Automated isolation tests** ([12](12-testing-and-slos.md#isolation-tests)): for every endpoint, caller A must get `404` for B's patient, medicine, dose, device, photo, audit log and pairing code. This runs in CI against a seeded two-tenant DB.
 - Optional defence in depth: Postgres row-level security keyed on a session variable (suggestion).
 
@@ -66,7 +72,10 @@ Written in the same transaction as the action. Visible to the patient's **curren
 
 `meta` never contains medicine names or notes, only IDs and changed field names.
 
-### Observability scrubbing
+### Observability scrubbing (implemented)
+`apps/api/src/observability/`: `scrub.ts` runs in Sentry's `beforeSend` and `beforeBreadcrumb`. It drops request bodies, headers, cookies and query strings, keeps only the user's ID, removes stack-frame local variables and console breadcrumbs, and replaces any key on the deny list (name, notes, display_name, amount*, photo*, url, code, token, email, password, …) with `[Filtered]`. **Exception and breadcrumb messages are not sent** unless they are system errors such as `connect ECONNREFUSED`: free text can't be cleaned reliably (a message like "could not save <name>" would pass any pattern), and the end-to-end test caught exactly that. Errors only: no tracing, no profiling. `instrument.ts` starts Sentry only when `SENTRY_DSN` is set; the global filter reports unexpected (5xx) errors and nothing else. `sentry.int-spec.ts` pushes a real error through the real SDK into a recording transport and asserts that none of the planted names, notes, emails, tokens or passwords leave.
+
+### Observability scrubbing (original spec)
 ([D-063](01-decisions.md#d-063-observability), [R-20](references.md))
 - Sentry `beforeSend` / `beforeBreadcrumb` in app and API: drop request and response bodies. Strip fields named `name`, `notes`, `display_name`, `amount*`, `photo*`, `url`, `code`, `token`, `push_token`, `email`, `password`. Drop console breadcrumbs.
 - `sendDefaultPii: false`. Identify users by internal UUID only.

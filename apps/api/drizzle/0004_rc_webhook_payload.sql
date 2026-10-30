@@ -1,0 +1,1 @@
+ALTER TABLE "rc_webhook_events" ADD COLUMN "payload" jsonb;

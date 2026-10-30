@@ -23,6 +23,8 @@
 ### Isolation tests
 Seed two caregivers (A, B), each with patients, medicines, doses, devices and photos. For **every** endpoint in [04](04-api.md), call as A against B's IDs → `404`. Call as a device of patient P1 against P2 → `404`. Generated from the route table, so new endpoints are covered automatically. CI fails if a route is missing from the matrix.
 
+Implemented as `apps/api/src/testing/isolation.int-spec.ts`: the route list is read from the running app (`routes.ts`), every route must appear in the matrix (kind `public`, `device`, `self` or `scoped`) or the test fails, every non-public route must answer `401` with no credentials, caregiver and device tokens must not be interchangeable, and every `scoped` route answers one uniform `404` to A for B's IDs, to a random ID and to a malformed ID alike. It found a `500` on a malformed device ID in `POST /v1/devices/:id/revoke`. CI runs it (`.github/workflows/ci.yml`).
+
 ### Reminder engine tests
 - Sweeper: concurrent workers (N = 4) over 10k due rows → each row processed exactly once; restart mid-batch → no loss, no duplicates.
 - Conditional push truth table: (`scheduled_through`, `last_seen_at`, permissions) → push or not ([D-036](01-decisions.md#d-036-conditional-push-backup)).

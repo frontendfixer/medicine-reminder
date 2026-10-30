@@ -86,6 +86,12 @@ A separate alert type (kind `device_health`) from the `device-health` job, every
 - The window-low case also sends the patient's device the visible push "Open the app to keep reminders on schedule" ([D-039](01-decisions.md#d-039-refill-paths); at most once per 12 h per device, [D-093](01-decisions.md#d-093-window-low-push-throttle)).
 - Caregiver UI shows a live health badge per device from the same rules, so the alert and the screen always agree.
 
+## Implementation notes
+
+- A `not_taken` answer on a **self profile** sends no alert (the owner just tapped it themselves), like corrections.
+- A time zone change that follows the phone (D-086) tells the caregiver with a `pairing`-kind push (event `timezone_changed`).
+- Misses are grouped by `group_key` and a running `count` in `notification_log.data`; the phone replaces the earlier alert (Android `tag`, iOS `collapseId`).
+
 ## Edge cases
 
 | Case | Behaviour |
