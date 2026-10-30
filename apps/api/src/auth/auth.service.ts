@@ -6,6 +6,7 @@ import { DB } from '../db/database.module.js';
 import { authSessions, caregiverSettings, consents, devices, users } from '../db/schema.js';
 import { RateLimiter } from '../redis/rate-limiter.js';
 import type { DeviceInfo, LoginBody, RegisterBody } from './auth.dto.js';
+import { EntitlementsService } from '../billing/entitlements.service.js';
 import { sessionReplaced, unauthenticated } from './auth.guard.js';
 import { LoginThrottle } from './login-throttle.js';
 import { PasswordService } from './password.service.js';
@@ -32,6 +33,7 @@ export class AuthService {
     private readonly tokens: TokensService,
     private readonly throttle: LoginThrottle,
     private readonly limiter: RateLimiter,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   async register(body: RegisterBody, ip: string): Promise<AuthResult> {
@@ -42,6 +44,7 @@ export class AuthService {
         const [user] = await tx.insert(users).values({ email: body.email, passwordHash }).returning({ id: users.id, email: users.email });
         await tx.insert(caregiverSettings).values({ userId: user!.id }); // defaults: 30 min, full, false
         await tx.insert(consents).values({ subjectType: 'caregiver', userId: user!.id, kind: 'signup', noticeVersion: body.consent.notice_version });
+        await this.entitlements.grantDevStarter(tx, user!.id); // no-op unless DEV_GRANT_STARTER=true
         return this.startSession(tx, user!, body.device);
       });
     } catch (e) {

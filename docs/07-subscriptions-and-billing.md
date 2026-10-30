@@ -36,6 +36,13 @@ COMMIT;
 
 Downgrades: if the limit drops below the current count, existing patients keep working (nothing is suspended for being over quota). New creates, transfers and reactivations are refused until the count is under the limit.
 
+### Implementation so far
+
+`apps/api/src/billing/`. `EntitlementsService.assertManagedQuota(tx, userId)` and `assertSelfProfileAllowed(tx, userId)` take the caller's transaction, lock the `subscriptions` row `FOR UPDATE`, and throw `SUBSCRIPTION_INACTIVE` or `PATIENT_LIMIT_REACHED`. `PLAN_PATIENT_LIMIT` in `@med/shared` maps plan → limit.
+
+- **Who may start something new:** only `active` and `store_grace`. In `grace` existing reminders and edits keep working, but creating a patient is refused with `SUBSCRIPTION_INACTIVE` (the table below says writes work in grace; the quota SQL above lists only `active` and `store_grace`; this reads them as "edits yes, new patients no").
+- **Dev stub (until RevenueCat, Phase 4):** a new account has **no subscription** and no access. With `DEV_GRANT_STARTER=true` (dev only) register also creates a Starter row. The API refuses to start with the flag set when `NODE_ENV=production`.
+
 ## Subscription states
 
 | `subscriptions.status` | Meaning | Reminders | Writes |

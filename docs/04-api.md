@@ -223,7 +223,7 @@ Rules: [05-reminder-engine](05-reminder-engine.md#answers-and-sync).
 
 | Method & path | Auth | Request | Response / notes |
 | --- | --- | --- | --- |
-| `GET /v1/subscription` | caregiver | — | `200 { plan, patient_limit, managed_patients, status, renews_at, expired_at, cutoff_at }` |
+| `GET /v1/subscription` | caregiver | — | `200 { plan, patient_limit, managed_patients, status, renews_at, expired_at, cutoff_at }`. With no subscription: `plan: null`, `status: null`, `patient_limit: 0` (the app shows the paywall). `managed_patients` counts active managed patients only |
 | `POST /v1/subscription/refresh` | caregiver | — | `200 Subscription`. Re-fetches from RevenueCat after a purchase or restore |
 | `POST /v1/webhooks/revenuecat` | webhook | RevenueCat event | `200` fast; processed async, deduped by event `id` ([07](07-subscriptions-and-billing.md#revenuecat-webhooks)) |
 

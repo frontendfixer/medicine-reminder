@@ -27,7 +27,7 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 - [x] Auth: email + password register/login (Argon2id + pepper, 8–128 chars, generic errors, per-account and per-IP throttling), refresh rotation, logout (D-095) (2026-10-30)
 - [x] One active caregiver login: session replacement; `SESSION_REPLACED` on the old phone (the push to it comes with the Phase 3 push sender) (2026-10-30)
 - [x] `caregiver_settings` with defaults (30 min, full, false), created at register (2026-10-30)
-- [ ] Subscriptions table + server-side entitlement check stub; Starter = 3
+- [x] Subscriptions table + server-side entitlement check stub; Starter = 3 (`EntitlementsService`, `GET /v1/subscription`, dev-only Starter grant; 2026-10-30)
 - [ ] Patients CRUD + archive/reactivate with quota check under row lock
 - [ ] Self profile creation (one per caregiver; subscription required)
 - [ ] Pairing code generation (31-symbol alphabet, `XXXX-XXXX`, QR), 10 min, single use, supersede, hash only
