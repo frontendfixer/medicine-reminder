@@ -2,7 +2,7 @@
 
 Every source opened while writing these docs. When you consult a source to implement or change something, add or update its row in the same change (see [CLAUDE.md](../CLAUDE.md)).
 
-All entries were checked on **2026-10-28** unless stated otherwise.
+All entries were checked on **2026-10-28** unless stated otherwise (R-56 to R-60: 2026-10-30).
 
 ## Mobile (Expo / React Native)
 
@@ -88,10 +88,14 @@ All entries were checked on **2026-10-28** unless stated otherwise.
 | R-44 | Digital Personal Data Protection Rules, 2025 — G.S.R. 846(E), 13 Nov 2025 (MeitY) | https://www.meity.gov.in/static/uploads/2025/11/53450e6e5dc0bfa85ebd78686cadad39.pdf | Rules 1, 2, 17–21 in force 13 Nov 2025; Rule 4 after 1 year; Rules 3, 5–16, 22, 23 after 18 months (**13 May 2027**). Rule 3 notice, 6 security (incl. 1-year log retention), 7 breach (Board within 72 h), 8(3) ≥ 1-year retention of processing logs, 9 contact, 10 child consent, 11 guardian consent, 14 rights (grievance ≤ 90 days) |
 | R-45 | MeitY document listed as "corrigendum" (Jan 2026) | https://www.meity.gov.in/static/uploads/2026/01/a49c50414777afc2af0b8d59dafacd60.pdf | Opened: it is a summary of public-consultation feedback on the draft Rules, **not** a corrigendum. No effect on these docs |
 | R-46 | MeitY data protection framework page | https://www.meity.gov.in/data-protection-framework | Returned HTTP 403 on 2026-10-28; official PDFs above were fetched directly |
+| R-56 | BullMQ home / requirements | https://docs.bullmq.io/ | Checked 2026-10-30. "Redis™ 6.2 or newer (the default)". Valkey and Dragonfly also work. bullmq 6.5.1 on npm (R-15 said 6.5.0); peer deps `ioredis >=5`. Redis 8.10.3 is the newest release (endoflife.date). Dev and prod target Redis 8.x with AOF, `noeviction` (R-17) |
+| R-57 | NestJS first steps | https://docs.nestjs.com/first-steps | Checked 2026-10-30. Run a Nest app on Node 20.19+ / 22.12+; the CLI generators need Node 22.22.3+, 24.15+ or 26+. `nest new` asks ESM (default, Vitest) or CommonJS (Jest). Strict TypeScript by default. `@nestjs/cli` 12.0.11, `@nestjs/core` 12.3.2 |
+| R-58 | Drizzle ORM — get started with PostgreSQL | https://orm.drizzle.team/docs/get-started/postgresql-new | Checked 2026-10-30. The page now installs `drizzle-orm@rc` (1.0.0-rc.5). npm `latest` is still 0.45.4 / drizzle-kit 0.31.11, so D-089 stands: install the `latest` line. Config: `defineConfig({ out, schema, dialect: 'postgresql', dbCredentials: { url } })`; driver `drizzle-orm/node-postgres` |
+| R-59 | Expo monorepos | https://docs.expo.dev/guides/monorepos/ | Checked 2026-10-30. pnpm: `pnpm-workspace.yaml` with `apps/*`, `packages/*`; local packages as `workspace:*`. Isolated installs work on SDK 54+; if they cause trouble set `nodeLinker: hoisted`. No custom Metro config needed with `expo/metro-config`; don't set `watchFolders` / `nodeModulesPath`. Create the app with `create-expo-app --template default@sdk-58` |
+| R-60 | pnpm workspaces | https://pnpm.io/workspaces | Checked 2026-10-30. Root `pnpm-workspace.yaml` with `packages:`; `workspace:*` protocol. pnpm 11.24.0 is installed locally. The page doesn't cover pnpm 11 specifics |
 
 ## Not yet checked (check before the phase that needs it)
 
-- Redis minimum version for BullMQ 6 (Phase 1).
 - Sign in with Apple / Google Sign-In server verification docs (v1.1, D-095).
 - expo-image-manipulator EXIF behaviour (Phase 2).
 - EAS Build profiles and store staged-rollout docs for Play Console and App Store phased release (Phase 5).

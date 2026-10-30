@@ -114,9 +114,9 @@ All checked on 2026-10-28; see [references.md](references.md). Pin exact version
 | --- | --- | --- |
 | Node.js | **26 LTS** (26.12.1) | Node 26 enters Active LTS 2026-10-28 per the release schedule; Node 24 is in Maintenance from 2026-10-20 ([R-12](references.md)) |
 | NestJS | 12 (`@nestjs/core` 12.3.2) | ESM-only packages; prefer Vitest (Jest needs Node 24.9+ for ESM) ([R-13](references.md)) |
-| Queue | `bullmq` 6.5.0, `@nestjs/bullmq` 12.0.0 | Job Schedulers |
+| Queue | `bullmq` 6.5.1, `@nestjs/bullmq` 12.0.0 | Job Schedulers |
 | Redis client | `ioredis` 6.0.0 | Workers: `maxRetriesPerRequest: null`. Redis: AOF on, `maxmemory-policy noeviction` ([R-17](references.md)) |
-| Redis server | *not yet checked* | Check the BullMQ minimum in Phase 1 |
+| Redis server | **8.x** (8.10.3); BullMQ minimum is 6.2 ([R-56](references.md)) | AOF on, `noeviction` |
 | PostgreSQL | **18** (18.6) | 19 is at RC; don't adopt before GA + first minor |
 | ORM | `drizzle-orm` 0.45.4, `drizzle-kit` 0.31.11 | 1.0 at RC ([D-089](01-decisions.md#d-089-drizzle-045x)) |
 | Postgres driver | `pg` 8.23.1 | |

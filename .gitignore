@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.expo/
+*.tsbuildinfo
+coverage/
+.env
+.env.*
+!.env.example
+google-services.json
+*.jks
+*.keystore

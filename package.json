@@ -1,0 +1,15 @@
+{
+  "name": "med-reminder",
+  "private": true,
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "postinstall": "pnpm --filter @med/shared build",
+    "build": "pnpm --filter @med/shared build && pnpm -r --if-present --filter '!@med/shared' build",
+    "typecheck": "pnpm --filter @med/shared build && pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "lint": "pnpm -r --if-present lint"
+  }
+}

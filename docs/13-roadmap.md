@@ -18,8 +18,8 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 
 **Depends on:** [02](02-architecture.md), [03](03-data-model.md), [04 auth/patients/pairing/devices](04-api.md), [06](06-pairing-and-devices.md), [07 quota](07-subscriptions-and-billing.md#quota-enforcement), [10](10-security-privacy.md). **Implements:** D-071, D-080, D-082, D-083, D-084, D-089, D-092, D-095, D-096.
 
-- [ ] Monorepo: `apps/mobile` (Expo SDK 58), `apps/api` (NestJS 12, Node 26 LTS), shared types
-- [ ] Re-check NestJS, Drizzle, BullMQ, Redis minimum version docs; record in references
+- [x] Monorepo: `apps/mobile` (Expo SDK 58), `apps/api` (NestJS 12, Node 26 LTS), shared types (pnpm workspace, `packages/shared`; 2026-10-30)
+- [x] Re-check NestJS, Drizzle, BullMQ, Redis minimum version docs; record in references (2026-10-30: R-56–R-60)
 - [ ] Postgres 18 + Drizzle schema and migrations for all tables in [03](03-data-model.md) (including the D-082 additions)
 - [ ] Field-level encryption helper + key management
 - [ ] Idempotency-Key interceptor + `idempotency_keys` table
