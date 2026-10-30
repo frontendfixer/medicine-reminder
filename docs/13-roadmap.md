@@ -56,11 +56,11 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 - [x] Medicine create/update/archive; update closes version, opens new effective now (2026-10-30)
 - [x] Schedule patterns: daily, weekdays, every N days; multiple times with own amount; start/end date (2026-10-30)
 - [x] Name/amount snapshots on doses; archive never deletes (2026-10-30)
-- [ ] Photo: pick, resize/compress, EXIF removal verified, presign `PUT` to private R2, server `HEAD` check, size cap
-- [ ] Signed read URLs for owner and paired devices only; access audited
+- [x] Photo (server side): presign `PUT` to private R2, server `HEAD` check, 1 MB cap, EXIF marker check (2026-10-30; the phone-side resize is app work, and the live R2 calls are untested without credentials)
+- [x] Signed read URLs for owner and paired devices only; access audited (2026-10-30)
 - [ ] Dose generator Job Scheduler (daily) + on-demand regeneration (edit, archive, tz change)
 - [x] `alert_due_at` frozen at generation via delay resolution medicine → patient → default; recomputed for future pending doses on a delay change (2026-10-30)
-- [ ] History and adherence endpoints (read-only for suspended)
+- [x] History and adherence endpoints (read-only for suspended), plus the audit-log read (2026-10-30)
 - [ ] Caregiver UI: medicine list/form, schedule editor, photo, history
 - [x] Property tests across timezones and DST ([12](12-testing-and-slos.md#dose-generation-tests)) (2026-10-30; found and fixed a gap-boundary bug)
 
@@ -75,14 +75,14 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 
 **Depends on:** [05](05-reminder-engine.md), [08](08-notifications-and-platform.md), [04 device sync](04-api.md#device-sync-and-answers). **Implements:** D-072, D-075, D-076, D-077, D-078, D-079, D-085, D-086, D-093, D-094.
 
-- [ ] `GET /v1/device/sync` with cursor, window sizing per platform, photo URLs, `account_state`, `commands`
+- [x] `GET /v1/device/sync` with cursor, window sizing per platform, photo URLs, `account_state`, `commands` (2026-10-30)
 - [ ] Phone scheduler: budget allocator across profiles, reconcile by dose ID, `scheduled_through`
 - [ ] Notification types → channels / interruption levels; lock-screen detail full/generic
 - [ ] Mandatory guided permission onboarding; skipped permissions reported
 - [ ] Heartbeat on open, background task and sync; device fields updated
 - [ ] Today screen: large buttons, photo, amount; works without notification permission
 - [ ] Lock-screen actions → SQLite outbox → batch `dose-responses` with `client_event_id`
-- [ ] Server answer rules: earliest wins, snooze limits, corrections hook, `dose_cleared` data push
+- [x] Server answer rules: earliest wins, snooze limits, corrections, `dose_cleared` data push queued (2026-10-30; delivery needs the push sender)
 - [ ] Sweeper Pass A: conditional backup push with outbox in `notification_log`
 - [ ] Expo push sender (chunks ≤ 100, backoff) + receipts job (`DeviceNotRegistered` handling)
 - [ ] Refill: app open, `expo-background-task`, Android data push; visible push when window < 24 h

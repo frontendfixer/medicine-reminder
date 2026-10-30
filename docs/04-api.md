@@ -214,6 +214,11 @@ The device replaces its whole scheduled set with the issued window: it cancels a
 
 Rules: [05-reminder-engine](05-reminder-engine.md#answers-and-sync).
 
+**Implementation** (`apps/api/src/device-sync/`):
+- **Sync** returns the whole issued window every time. The `cursor` is an opaque fingerprint the phone may store; it is not needed to resume. Window: Android 5 days; iOS `⌊60 ÷ slots per day⌋`, at least 2, at most 14 (`window.ts`, with the examples from 05 as tests). Doses from the last 24 h are included so the Today screen shows recent answers. A suspended patient gets `account_state: suspended`, `commands: ["cancel_all"]` and nothing else; during grace the window ends at `cutoff_at` (D-087). Photo read URLs are issued per sync and audited as one `photo.read_url_issued` row listing medicine IDs.
+- **`dose-responses`** is exempt from `Idempotency-Key` (idempotent per item by `client_event_id`, and always accepted from old builds, D-080). Each item runs in its own transaction with the dose row locked; a dose of another patient is `rejected` as if it did not exist. Earliest `responded_at` wins after clamping, a tie goes to the first to arrive; Snooze is refused within 10 minutes of the deadline and never moves `alert_due_at`. `not_taken` sets `alert_sent_at` so no missed alert follows. A late answer to a `missed` dose sends one `correction`. Self profiles get no `not_taken` or `correction` push to themselves. After a Taken or Not taken answer, the patient's other phones get a queued `sync` data push (kind `sync`, with the dose ID) to clear the dose.
+- The push sender that delivers the queued `notification_log` rows is a separate piece (below).
+
 ## History and adherence
 
 | Method & path | Auth | Request | Response |
@@ -221,6 +226,8 @@ Rules: [05-reminder-engine](05-reminder-engine.md#answers-and-sync).
 | `GET /v1/patients/{patientId}/doses` | caregiver | `?from=&to=&status=&medicine_id=&cursor=` | `200 { items: Dose[], next_cursor }` (works for suspended patients, read-only) |
 | `GET /v1/patients/{patientId}/adherence` | caregiver | `?from=&to=&group_by=day\|medicine` | `200 { buckets: [{ key, taken, not_taken, missed, pending }] }` |
 | `GET /v1/patients/{patientId}/audit-log` | caregiver | `?cursor=` | `200 { items: AuditEntry[], next_cursor }` (D-066) |
+
+**Implementation** (`apps/api/src/history/`): lists are newest first with keyset cursors (`next_cursor` is opaque; a bad one is `400`). `doses` defaults to the last 30 days through the next 14 and takes `limit` 1–100 (default 50). `adherence` groups `day` by the *patient's* local date (default) or `medicine`; snoozed doses count as `pending`. All three are read-only and work for suspended patients; the audit log shows only that patient's rows to its current owner.
 
 ## Transfer
 

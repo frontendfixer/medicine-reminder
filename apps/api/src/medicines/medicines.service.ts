@@ -8,6 +8,7 @@ import { DB } from '../db/database.module.js';
 import { medicines, scheduleTimes, scheduleVersions } from '../db/schema.js';
 import { DosesService } from '../doses/doses.service.js';
 import { assertPatientWritable, PatientsRepository } from '../patients/patients.repository.js';
+import { PhotosService } from '../storage/photos.service.js';
 import { medicineView } from './medicine-view.js';
 import type { CreateMedicineBody, ScheduleBody, UpdateMedicineBody } from './medicines.dto.js';
 import { MedicinesRepository, type MedicineRow } from './medicines.repository.js';
@@ -23,22 +24,30 @@ export class MedicinesService {
     private readonly doses: DosesService,
     private readonly encryption: FieldEncryption,
     private readonly audit: AuditService,
+    private readonly photos: PhotosService,
   ) {}
 
   async list(userId: string, patientId: string, includeArchived: boolean) {
     const patient = await this.patients.findOwned(userId, patientId);
     const rows = await this.repo.listForPatient(patient.id, includeArchived);
     const schedules = await this.repo.schedules(rows.map((r) => r.id));
-    return { items: rows.map((r) => medicineView(r, schedules.get(r.id), this.encryption)) };
+    const photos = await this.photosFor(userId, patient.id, rows);
+    return { items: rows.map((r) => medicineView(r, schedules.get(r.id), this.encryption, photos.get(r.id) ?? null)) };
   }
 
   async get(userId: string, medicineId: string) {
     const row = await this.repo.findOwned(userId, medicineId);
-    return medicineView(row, (await this.repo.schedules([row.id])).get(row.id), this.encryption);
+    const photos = await this.photosFor(userId, row.patientId, [row]);
+    return medicineView(row, (await this.repo.schedules([row.id])).get(row.id), this.encryption, photos.get(row.id) ?? null);
   }
 
   async create(userId: string, patientId: string, body: CreateMedicineBody) {
-    return this.db.transaction(async (tx) => {
+    if (body.photo_object_key) {
+      await this.patients.findOwned(userId, patientId); // ownership first, so a stranger can't probe uploads
+      this.checkPhotoKey(patientId, body.photo_object_key);
+      await this.photos.verifyUploaded(body.photo_object_key);
+    }
+    const created = await this.db.transaction(async (tx) => {
       const patient = await this.patients.lockOwned(tx, userId, patientId);
       assertPatientWritable(patient);
       this.checkPhotoKey(patient.id, body.photo_object_key);
@@ -57,13 +66,18 @@ export class MedicinesService {
       await this.openVersion(tx, row!.id, body.schedule, new Date());
       await this.doses.generateForPatient(tx, patient.id);
       await this.audit.record(tx, { actorType: 'caregiver', actorId: userId, patientId: patient.id, action: 'medicine.created', targetType: 'medicine', targetId: row!.id });
-      return this.viewIn(tx, row!);
+      return row!;
     });
+    return this.render(userId, created);
   }
 
   async update(userId: string, medicineId: string, body: UpdateMedicineBody) {
-    return this.db.transaction(async (tx) => {
-      const found = await this.repo.findOwned(userId, medicineId);
+    const found = await this.repo.findOwned(userId, medicineId);
+    if (body.photo_object_key && body.photo_object_key !== found.photoObjectKey) {
+      this.checkPhotoKey(found.patientId, body.photo_object_key);
+      await this.photos.verifyUploaded(body.photo_object_key);
+    }
+    const result = await this.db.transaction(async (tx) => {
       const patient = await this.patients.lockOwned(tx, userId, found.patientId); // patient first, then medicine
       assertPatientWritable(patient);
       const current = await this.repo.lock(tx, medicineId);
@@ -104,24 +118,27 @@ export class MedicinesService {
         targetId: medicineId,
         meta: { fields: Object.keys(body).sort((a, b) => (a < b ? -1 : 1)) },
       });
-      return this.viewIn(tx, row!);
+      return row!;
     });
+    if (body.photo_object_key !== undefined && body.photo_object_key !== found.photoObjectKey) this.photos.deleteQuietly(found.photoObjectKey); // replaced or removed
+    return this.render(userId, result);
   }
 
   // Never a delete (D-023): the medicine and its history stay; reminders stop.
   async archive(userId: string, medicineId: string) {
-    return this.db.transaction(async (tx) => {
+    const archived = await this.db.transaction(async (tx) => {
       const found = await this.repo.findOwned(userId, medicineId);
       const patient = await this.patients.lockOwned(tx, userId, found.patientId);
       assertPatientWritable(patient);
       const current = await this.repo.lock(tx, medicineId);
-      if (current.archivedAt) return this.viewIn(tx, current);
+      if (current.archivedAt) return current;
       const [row] = await tx.update(medicines).set({ archivedAt: sql`now()`, updatedAt: sql`now()` }).where(eq(medicines.id, medicineId)).returning();
       await tx.update(scheduleVersions).set({ effectiveUntil: sql`now()` }).where(sql`${scheduleVersions.medicineId} = ${medicineId} and ${scheduleVersions.effectiveUntil} is null`);
       await this.doses.deleteFuturePending(tx, { medicineId });
       await this.audit.record(tx, { actorType: 'caregiver', actorId: userId, patientId: patient.id, action: 'medicine.archived', targetType: 'medicine', targetId: medicineId });
-      return this.viewIn(tx, row!);
+      return row!;
     });
+    return this.render(userId, archived);
   }
 
   private async openVersion(tx: Tx, medicineId: string, s: ScheduleBody, effectiveFrom: Date): Promise<void> {
@@ -147,7 +164,22 @@ export class MedicinesService {
     if (!new RegExp(`^p/${patientId}/m/[0-9a-f-]{36}\\.jpg$`).test(key)) throw ApiException.validation({ photo_object_key: 'is not a valid upload for this patient' });
   }
 
-  private async viewIn(tx: Tx, row: MedicineRow) {
-    return medicineView(row, (await this.repo.schedules([row.id], tx)).get(row.id), this.encryption);
+  // One signed read URL per photo, and one audit row per request listing the medicines (IDs only).
+  private async photosFor(userId: string, patientId: string, rows: MedicineRow[]) {
+    const out = new Map<string, NonNullable<Awaited<ReturnType<PhotosService['readUrl']>>>>();
+    for (const r of rows) {
+      const url = await this.photos.readUrl(r.photoObjectKey);
+      if (url) out.set(r.id, url);
+    }
+    if (out.size) {
+      await this.db.transaction((tx) => this.audit.record(tx, { actorType: 'caregiver', actorId: userId, patientId, action: 'photo.read_url_issued', meta: { medicines: [...out.keys()] } }));
+    }
+    return out;
+  }
+
+  // Built after commit, so the schedule is the saved one and the response carries a fresh signed photo URL.
+  private async render(userId: string, row: MedicineRow) {
+    const photos = await this.photosFor(userId, row.patientId, [row]);
+    return medicineView(row, (await this.repo.schedules([row.id])).get(row.id), this.encryption, photos.get(row.id) ?? null);
   }
 }

@@ -1,13 +1,16 @@
 import { FieldEncryption } from '../crypto/field-encryption.js';
 import type { MedicineRow, TimeRow, VersionRow } from './medicines.repository.js';
 
-export function medicineView(m: MedicineRow, schedule: { version: VersionRow; times: TimeRow[] } | undefined, encryption: FieldEncryption) {
+export type PhotoUrl = { url: string; expires_at: Date; etag: string } | null;
+
+export function medicineView(m: MedicineRow, schedule: { version: VersionRow; times: TimeRow[] } | undefined, encryption: FieldEncryption, photo: PhotoUrl = null) {
   return {
     id: m.id,
     patient_id: m.patientId,
     name: encryption.decrypt('medicines.name', m.name),
     notes: m.notes ? encryption.decrypt('medicines.notes', m.notes) : null,
     photo_object_key: m.photoObjectKey,
+    photo, // short-lived signed URL, only for the owner and paired devices (docs/10-security-privacy.md#photos)
     notification_type: m.notificationType,
     missed_delay_min: m.missedDelayMin,
     archived_at: m.archivedAt,
