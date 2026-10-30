@@ -1,3 +1,8 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+
+# pnpm 11 fails installs on unreviewed dependency build scripts (strictDepBuilds, R-62).
+# esbuild's postinstall only swaps in the native binary as an optimisation; not needed.
+allowBuilds:
+  esbuild: false

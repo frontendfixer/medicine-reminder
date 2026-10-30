@@ -93,6 +93,8 @@ All entries were checked on **2026-10-28** unless stated otherwise (R-56 to R-60
 | R-58 | Drizzle ORM — get started with PostgreSQL | https://orm.drizzle.team/docs/get-started/postgresql-new | Checked 2026-10-30. The page now installs `drizzle-orm@rc` (1.0.0-rc.5). npm `latest` is still 0.45.4 / drizzle-kit 0.31.11, so D-089 stands: install the `latest` line. Config: `defineConfig({ out, schema, dialect: 'postgresql', dbCredentials: { url } })`; driver `drizzle-orm/node-postgres` |
 | R-59 | Expo monorepos | https://docs.expo.dev/guides/monorepos/ | Checked 2026-10-30. pnpm: `pnpm-workspace.yaml` with `apps/*`, `packages/*`; local packages as `workspace:*`. Isolated installs work on SDK 54+; if they cause trouble set `nodeLinker: hoisted`. No custom Metro config needed with `expo/metro-config`; don't set `watchFolders` / `nodeModulesPath`. Create the app with `create-expo-app --template default@sdk-58` |
 | R-60 | pnpm workspaces | https://pnpm.io/workspaces | Checked 2026-10-30. Root `pnpm-workspace.yaml` with `packages:`; `workspace:*` protocol. pnpm 11.24.0 is installed locally. The page doesn't cover pnpm 11 specifics |
+| R-61 | PostgreSQL 18 — UUID functions | https://www.postgresql.org/docs/18/functions-uuid.html | Checked 2026-10-30. Built-in `uuidv7([shift interval])` (time-ordered); `gen_random_uuid()` / `uuidv4()` still exist. Confirmed on `postgres:18-alpine` (18.6). Table IDs default to `uuidv7()` |
+| R-62 | pnpm — build settings | https://pnpm.io/settings/build | Checked 2026-10-30. `allowBuilds` in `pnpm-workspace.yaml` maps a package to `true`/`false`; `strictDepBuilds` defaults to `true` and fails the install on unreviewed build scripts. We set `esbuild: false` |
 
 ## Not yet checked (check before the phase that needs it)
 

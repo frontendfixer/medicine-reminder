@@ -126,6 +126,12 @@ All checked on 2026-10-28; see [references.md](references.md). Pin exact version
 | Errors | `@sentry/nestjs` 11.9.0 | |
 | Billing | RevenueCat REST API v2 | Secret key, server only |
 
+## Local development
+
+- Prerequisites: Node 26, pnpm 11, Docker.
+- `docker compose up -d --wait` starts PostgreSQL 18 on `127.0.0.1:5442` and Redis 8 on `127.0.0.1:6389` (non-default ports so other projects don't clash). It also creates a `med_test` database.
+- `cp apps/api/.env.example apps/api/.env`, then in `apps/api`: `pnpm db:migrate` (dev database), `pnpm test` (unit), `pnpm test:int` (integration, resets `med_test` on every run).
+
 ## Module layout (API)
 
 | Nest module | Owns tables | Doc |

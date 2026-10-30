@@ -20,7 +20,7 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 
 - [x] Monorepo: `apps/mobile` (Expo SDK 58), `apps/api` (NestJS 12, Node 26 LTS), shared types (pnpm workspace, `packages/shared`; 2026-10-30)
 - [x] Re-check NestJS, Drizzle, BullMQ, Redis minimum version docs; record in references (2026-10-30: R-56–R-60)
-- [ ] Postgres 18 + Drizzle schema and migrations for all tables in [03](03-data-model.md) (including the D-082 additions)
+- [x] Postgres 18 + Drizzle schema and migrations for all tables in [03](03-data-model.md) (including the D-082 additions; `otp_challenges` skipped, v1.1) (2026-10-30)
 - [ ] Field-level encryption helper + key management
 - [ ] Idempotency-Key interceptor + `idempotency_keys` table
 - [ ] Error format and codes per [04](04-api.md#errors)

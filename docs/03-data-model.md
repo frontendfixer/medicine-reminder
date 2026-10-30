@@ -182,8 +182,9 @@ export const scheduleVersions = pgTable("schedule_versions", {
   createdAt: ts("created_at").notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("schedule_versions_current_uq").on(t.medicineId).where(sql`${t.effectiveUntil} is null`),
-  check("sv_weekdays", sql`${t.pattern} <> 'weekdays' or cardinality(${t.daysOfWeek}) between 1 and 7`),
-  check("sv_interval", sql`${t.pattern} <> 'every_n_days' or ${t.intervalDays} >= 2`),
+  // A CHECK passes when its expression is NULL, so each required column is coalesced to false.
+  check("sv_weekdays", sql`${t.pattern} <> 'weekdays' or coalesce(cardinality(${t.daysOfWeek}) between 1 and 7 and ${t.daysOfWeek} <@ array[1,2,3,4,5,6,7]::smallint[], false)`),
+  check("sv_interval", sql`${t.pattern} <> 'every_n_days' or coalesce(${t.intervalDays} >= 2, false)`),
   check("sv_dates", sql`${t.endDate} is null or ${t.endDate} >= ${t.startDate}`),
 ]);
 
@@ -333,6 +334,14 @@ erDiagram
   subscriptions { uuid user_id PK text plan int patient_limit enum status timestamptz renews_at text provider_ref text last_event_id }
   audit_log { uuid id PK text actor_type uuid actor_id uuid patient_id text action jsonb meta }
 ```
+
+## Implementation notes
+
+- **IDs** default to PostgreSQL 18's `uuidv7()` (time-ordered, [R-61](references.md)); callers may supply one. The sketch above omits the default for brevity.
+- **Code** lives in `apps/api/src/db/schema.ts`; enum values come from `@med/shared`. Migrations are generated into `apps/api/drizzle/` and applied with `drizzle-kit`.
+- **`otp_challenges`** is not created: it is v1.1 ([D-095](01-decisions.md#d-095-caregiver-sign-in-is-email--password-in-v1)).
+- **`CHECK` and NULL:** a `CHECK` passes when its expression is NULL, so checks that require a column (`sv_weekdays`, `sv_interval`) coalesce to false. The first sketch let a `weekdays` schedule with no days through; the integration test caught it.
+- The extra `CHECK`s on `notification_log.status`, `audit_log.actor_type` and `consents` just spell out the values listed in the comments and tables.
 
 ## Rules the schema relies on
 
