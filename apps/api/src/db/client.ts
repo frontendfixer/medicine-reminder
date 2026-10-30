@@ -8,3 +8,4 @@ export function createDb(connectionString: string) {
 }
 
 export type Db = ReturnType<typeof createDb>['db'];
+export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];

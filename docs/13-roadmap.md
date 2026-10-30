@@ -28,8 +28,8 @@ The reminder spike is removed; work starts at Phase 1. Its reliability checks mo
 - [x] One active caregiver login: session replacement; `SESSION_REPLACED` on the old phone (the push to it comes with the Phase 3 push sender) (2026-10-30)
 - [x] `caregiver_settings` with defaults (30 min, full, false), created at register (2026-10-30)
 - [x] Subscriptions table + server-side entitlement check stub; Starter = 3 (`EntitlementsService`, `GET /v1/subscription`, dev-only Starter grant; 2026-10-30)
-- [ ] Patients CRUD + archive/reactivate with quota check under row lock
-- [ ] Self profile creation (one per caregiver; subscription required)
+- [x] Patients CRUD + archive/reactivate with quota check under row lock (patient changes are audited; 2026-10-30)
+- [x] Self profile creation (one per caregiver; subscription required) via `POST /v1/patients` with `type: self` (2026-10-30; its own device comes with pairing)
 - [ ] Pairing code generation (31-symbol alphabet, `XXXX-XXXX`, QR), 10 min, single use, supersede, hash only
 - [ ] Redeem transaction with 5-attempt lock, rate limits (IP/device/global), device limit 3
 - [ ] Optional attestation via `@expo/app-integrity` in log-only mode

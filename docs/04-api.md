@@ -44,6 +44,8 @@ All `device` endpoints are scoped to the token's `patient_id`. All `caregiver` e
 | 403 | `PATIENT_SUSPENDED` | Write to a suspended patient (D-056) |
 | 404 | `NOT_FOUND` | Also returned for resources outside caller scope (no existence leak) |
 | 409 | `PATIENT_LIMIT_REACHED` | Quota (D-053) |
+| 409 | `SELF_PROFILE_EXISTS` | Second active self profile (D-092) |
+| 409 | `PATIENT_ARCHIVED` | Edit or pair an archived patient; reactivate first |
 | 409 | `DEVICE_LIMIT_REACHED` | 3 active devices (D-018, [D-084](01-decisions.md#d-084-pairing-limits-device-limit-and-code-lookup)) |
 | 409 | `IDEMPOTENCY_KEY_REUSED` | See above |
 | 409 | `REQUEST_IN_PROGRESS` | Same key, first request still running (`Retry-After: 1`) |
@@ -102,6 +104,15 @@ A successful sign-in revokes any previous active session and caregiver device ro
 | `POST /v1/patients/{patientId}/reactivate` | caregiver | — | `200 Patient`. Quota check (D-053) |
 
 `Patient = { id, display_name, type, timezone, tz_mode, missed_delay_min, lockscreen_detail, status, devices: DeviceSummary[], created_at }`
+
+**Implementation** (`apps/api/src/patients/`):
+- **Scoping:** the caregiver is always the signed-in user. The path ID only picks one of *their* patients: every repository method takes the owner and puts it in the `WHERE`. A patient that belongs to someone else, doesn't exist, or has a malformed ID all return the same `404 NOT_FOUND`.
+- **Create:** managed → quota check; self → needs an active subscription, one per caregiver (`SELF_PROFILE_EXISTS`), no slot used. `tz_mode` defaults to `follow_device`. `display_name` is 1–80 characters and is stored encrypted. `timezone` must be an IANA name (`Asia/Kolkata`, `UTC`; abbreviations like `EST` are rejected). `missed_delay_min` is a whole number from 1 to 1440 (the cap is a suggestion).
+- **Update:** unknown fields are rejected (`type`, `status` and `owner_user_id` can't be changed), `null` clears `missed_delay_min` or `lockscreen_detail` back to the caregiver default, and an empty body is `400`. Suspended → `403 PATIENT_SUSPENDED`; archived → `409 PATIENT_ARCHIVED`. The audit row lists changed field names only. Regenerating future doses (D-040) and recomputing `alert_due_at` (D-086) come with dose generation in Phase 2.
+- **Archive:** one transaction. Status `archived`, active devices revoked (audited as `device.revoked`), future `pending` doses deleted (answered and past doses stay), live pairing codes invalidated. Repeating it changes nothing. Works from `active` and `suspended`.
+- **Reactivate:** only from `archived`; quota check for managed, subscription and one-self check for self. A `suspended` patient is `403 PATIENT_SUSPENDED`: only renewal restores them (07).
+- **Lock order** is subscription row, then patient row, everywhere, so create, archive and reactivate can't deadlock.
+- **`DeviceSummary`** has no `healthy` / `problems` yet; those come with the device-health job (Phase 4). The list has active devices only.
 
 ## Pairing
 

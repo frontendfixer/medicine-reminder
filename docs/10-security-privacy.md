@@ -42,7 +42,7 @@ Decisions: [D-066](01-decisions.md#d-066-security-baseline), [D-067](01-decision
 
 ### Isolation
 - Every caregiver query is scoped by `patients.owner_user_id = :callerId`. Every device query is scoped by the token's `patient_id`. Enforced in a repository layer that requires a scope argument; no unscoped repository methods.
-- Out-of-scope resources return `404`, not `403`.
+- Out-of-scope resources return `404`, not `403`. Implemented for patients in `PatientsRepository` (`apps/api/src/patients/`): the owner is a required argument of every method, and the same `404` covers "not yours", "doesn't exist" and "not a UUID".
 - **Automated isolation tests** ([12](12-testing-and-slos.md#isolation-tests)): for every endpoint, caller A must get `404` for B's patient, medicine, dose, device, photo, audit log and pairing code. This runs in CI against a seeded two-tenant DB.
 - Optional defence in depth: Postgres row-level security keyed on a session variable (suggestion).
 
